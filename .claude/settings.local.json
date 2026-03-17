@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"c:/Users/ToygunBaysal/OneDrive - SADE TR/Masaüstü/SCM\" status)"
+    ]
+  }
+}
