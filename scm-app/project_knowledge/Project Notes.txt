@@ -1,0 +1,68 @@
+Purpose & context
+Toygun is building SADE SCM — a Turkish-language banking fraud case management platform. The system integrates with FDM (Fraud Data Mart) as a read-only transaction source and SAS SFD (fraud detection/scoring engine). Roles include Fraud Analyst (Analist), Manager (Yönetici), and Admin. Authentication is handled via KeyCloak (OIDC), with LDAP and local user support.
+Core architecture principles:
+
+SCM does not perform fraud marking. Transactions are already marked upstream by Alert Triage ("Send to Case Manager") and flow through FDM to SCM's Transaction Management screen
+Cases are created from one or more selected transactions; cases support parent-child hierarchical nesting and sibling (peer-level) relationships
+Review ≠ Maker-Checker: Review is informal peer feedback, non-blocking, audit-logged only. Maker-Checker is the formal mandatory dual-approval workflow required for case closure and user creation
+Domain is the primary isolation boundary — each fraud type (Payment Fraud, Credit Card Fraud, Application Fraud, Account Takeover, Internal Fraud) is an independent domain instance with its own cases, users, settings, dashboard metrics, and reports. "Tüm Domainler" is not a valid selection
+All data stored in FDM via REST API; no separate PostgreSQL schema for SCM core data. MinIO for file storage
+
+Key domain terminology: vaka (case), işlem (transaction), senaryo, aksiyon, alert, havuz (pool), domain switcher, SLA raporu, maker-checker, İnceleme (review), Onay Bekleyenler (pending approvals), Vakalarım (my cases), varlık (entity), Üst Vaka (parent case), Alt Vaka (child case), Kardeş Vaka (sibling case)
+
+Current state
+Toygun is actively building React JSX UI components for SADE SCM, working screen by screen from a technical specification document (SCM_Teknik_Spesifikasyon) and flow diagram images. Components completed or in progress:
+
+SCM_Dashboard.jsx — collapsible dark sidebar, KPI cards, domain switcher, notification panel in sidebar, role-based panels (Pending Approvals for manager/admin, Unassigned Cases table)
+SCM_CaseCreation.jsx — transaction list with fraud scores, severity badges, collapsible filter panel, "Yeni Vaka Oluştur" modal with parent case selector, domain locked to sidebar selection, role-differentiated assignment rules
+SCM_CaseList.jsx — currency toggle (Default/TRY/USD), inline column search, collapsible sidebar sub-menu (Vakalarım / İncelemem İçin Gönderilenler / Onay Bekleyenler / Silinmiş Vakalar), multi-select checkboxes driving export, row/ID click for detail drawer
+SCM_CaseDetail.jsx — full case detail with six tabs (Varlıklar, Yorumlar, Ekler, Geçmiş, İşlemler, İlişkili Vakalar), fraud amount distribution visual bar (bank/customer/undetermined), review send modal (internal + external tabs), case relation modal with three relationship type cards and live tree preview, maker-checker flows for close/delete
+SCM_Review.jsx — internal reviewer experience with KPI cards and review list; external reviewer flow with OTP verification (6-digit, masked email), read-only case detail with watermark, thank-you screen
+SCM_TransactionSearch.jsx — investigative-only search (no case assignment from this screen), KPI cards, collapsible filter panel, sortable table with inline column search, currency toggle, Transaction Detail Drawer with fraud score bar; global Ctrl+K / Cmd+K Command Palette quick search in header
+SCM_Reports.jsx — categorized report catalog (40+ reports, 8 categories), pre-run filters, case selection table with checkboxes (all pre-selected, "Raporla (N)" button), "Manuel Rapor Oluşturma" as dedicated tab
+
+Technical spec document is at an advanced version, with domain architecture, maker-checker governance, audit trail (49 event types), logging/security sections, and end-to-end flow (15 steps) all incorporated.
+
+On the horizon
+
+Remaining SCM screens not yet built as React components (Settings/Ayarlar screen has a flow diagram; User Management was scoped out but may return)
+Settings screen: currency options are Orijinal Para Birimi (from SFD), TRY, USD — EUR is not included
+Potential further spec refinements as UI development surfaces new edge cases
+
+
+Key learnings & principles
+
+Domain switcher: individual domains only, no "All Domains" aggregate option — each domain has independent settings
+Case deletion: always requires Maker-Checker regardless of system settings; soft-delete only; open cases only
+Fraud amount distribution: bank share + customer share must equal total exactly; remainder shown as "Belirlenmemiş"; visual color-coded bar (blue/amber/gray), not input fields
+External reviewer auth: magic link is single-use, 72-hour expiry, 30-minute inactivity timeout; verification via 6-digit OTP (not name input)
+Varlıklar tab structure: sub-filter pills (Tümü/Müşteri/Banka Kartı/Kredi Kartı), separate table sections per entity type; mock data uses { customers, debitCards, creditCards } object structure
+Case hierarchy depth validation: uses altSeviyeSayisi (subtree depth) with condition enDerinSeviye > maxSeviye (strict >, not >=)
+Closing a case: requires a mandatory closing comment in the modal
+Admin role: settings-only, no case/transaction data visibility
+SLA: removed from dashboard UI; operational process monitoring focus (unmarked transaction idle time, unassigned cases, case aging)
+User Management: extracted as its own page/menu item, accessible to Manager and Admin (not Admin-only)
+
+
+Approach & patterns
+
+Iterative UI development: Toygun provides concise, direct feedback in Turkish (often short imperative lists); Claude translates intent into working code without requiring implementation-level direction
+Toygun thinks in user flow logic ("raporla demeden önce benim vakalar arasında seçmem gerekli") and expects Claude to handle the technical translation
+Design authority: the Dashboard component is the reference standard — all other screens must match its sidebar, header, domain switcher, notification panel, and typography patterns exactly
+Spec changes applied as proper OOXML tracked changes (w:del/w:ins) with author attribution, not plain text edits
+When building flow diagrams, swimlane vs. flat layout preference: flat flowchart LR is preferred over swimlane subgraphs for this project (swimlanes were explicitly rejected in settings flow)
+
+Mandatory diagram rules (user instructions):
+
+Flow diagrams must always be drawn via the Figma MCP connector — never as HTML or Mermaid files. If the Figma connector is offline, inform Toygun and wait; do not use alternatives
+Turkish characters (ç, ş, ğ, ı, ö, ü, İ, Ş, Ç, Ğ, Ö, Ü) must be used correctly in all Figma diagrams — no ASCII substitution
+
+
+Tools & resources
+
+React JSX with inline styles; DM Sans font for UI, JetBrains Mono for IDs/amounts/data fields
+Design system: dark sidebar #0F172A, blue primary #1E40AF/#3B82F6, amber accent #F59E0B, light gray background #F1F5F9
+Figma MCP connector (Figma:generate_diagram) for all flow diagrams — parameters: name, userIntent, mermaidSyntax; node IDs must be ASCII-only even when labels use Turkish characters
+Figma diagram color convention: blue #CCE5FF = screens, green #D5F5E3 = start/end/toggles, yellow #FFD700 = decisions, red #FF4444 = errors, orange #FFA500 = conditional/warning, purple #E8DAEF = backend actions, dark purple #7C3AED = database nodes
+DOCX editing: unpack XML → Python script edits → validate → repack workflow; OOXML tracked changes for all spec modifications
+Reference files: SCM_Teknik_Spesifikasyon_v[current].docx, SFD_Case_Management_Design.xlsx, per-screen flow diagram JPGs
