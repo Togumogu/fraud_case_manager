@@ -35,18 +35,34 @@ router.get('/kpis', (req, res) => {
 
 router.get('/activity', (req, res) => {
   const db = getDb();
-  const { domain } = req.query;
-  const domainFilter = domain ? ' AND c.domain_id = ?' : '';
-  const params = domain ? [domain] : [];
+  const { domain, page, limit, user_name, action_type, search, date_from, date_to } = req.query;
+
+  const conditions = ['1=1'];
+  const params = [];
+
+  if (domain) { conditions.push('c.domain_id = ?'); params.push(domain); }
+  if (user_name) { conditions.push('ch.user_name = ?'); params.push(user_name); }
+  if (action_type) { conditions.push('ch.action_type = ?'); params.push(action_type); }
+  if (date_from) { conditions.push('ch.created_at >= ?'); params.push(date_from); }
+  if (date_to) { conditions.push('ch.created_at <= ?'); params.push(date_to); }
+  if (search) { conditions.push("(c.name LIKE ? OR CAST(ch.case_id AS TEXT) LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
+
+  const where = conditions.join(' AND ');
+  const pageNum = Math.max(1, parseInt(page) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(limit) || 20));
+  const offset = (pageNum - 1) * pageSize;
+
+  const total = db.prepare(`SELECT COUNT(*) as cnt FROM case_history ch JOIN cases c ON c.id = ch.case_id WHERE ${where}`).get(...params).cnt;
   const rows = db.prepare(`
     SELECT ch.*, c.name as case_name
     FROM case_history ch
     JOIN cases c ON c.id = ch.case_id
-    WHERE 1=1${domainFilter}
+    WHERE ${where}
     ORDER BY ch.created_at DESC
-    LIMIT 20
-  `).all(...params);
-  res.json(rows);
+    LIMIT ? OFFSET ?
+  `).all(...params, pageSize, offset);
+
+  res.json({ data: rows, total, page: pageNum, limit: pageSize });
 });
 
 router.get('/unassigned-cases', (req, res) => {

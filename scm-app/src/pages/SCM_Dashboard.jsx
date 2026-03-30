@@ -172,7 +172,8 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
 
       // Activity feed — map to display format
       const ACTION_TYPE_MAP = { create: "create", comment: "comment", assign: "assign", upload: "upload", close: "close", review: "review", approve: "approve", delete: "close" };
-      setRecentActivities(activity.map((a, i) => ({
+      const activityRows = activity.data || activity;
+      setRecentActivities(activityRows.map((a, i) => ({
         id: a.id || i,
         user: a.user_name,
         action: a.action,
@@ -465,7 +466,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
                     {isManager ? "Tüm ekip aktiviteleri" : "Kendi aktiviteleriniz"}
                   </p>
                 </div>
-                <span style={{ fontSize: 12, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 500 }}>Tümünü Gör →</span>
+                <span onClick={() => onNavigate && onNavigate("activities")} style={{ fontSize: 12, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 500 }}>Tümünü Gör →</span>
               </div>
               <div style={{ maxHeight: 380, overflow: "auto" }}>
                 {recentActivities.slice(0, isManager ? 7 : 4).map(act => {
@@ -589,7 +590,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
                 <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Atanmamış Vakalar</h3>
                 <p style={{ margin: 0, fontSize: 11.5, color: COLORS.textSecondary }}>Henüz bir analiste atanmamış son vakalar</p>
               </div>
-              <span style={{ fontSize: 12, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 500 }}>Vaka Listesi →</span>
+              <span onClick={() => onNavigate && onNavigate("cases")} style={{ fontSize: 12, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 500 }}>Vaka Listesi →</span>
             </div>
             <Table
               columns={unassignedColumns}

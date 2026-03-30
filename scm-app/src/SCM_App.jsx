@@ -7,6 +7,7 @@ import SCMReview from "./pages/SCM_Review";
 import SCMTransactionSearch from "./pages/SCM_TransactionSearch";
 import SCMReports from "./pages/SCM_Reports";
 import SCMSettings from "./pages/SCM_Settings";
+import SCMActivities from "./pages/SCM_Activities";
 import Toast from "./components/Toast";
 import { cases as casesApi, fdm as fdmApi } from "./api/client";
 import { generateCases, generateTransactions, DOMAIN_TO_SOURCE } from "./data/mockData";
@@ -14,6 +15,7 @@ import { generateCases, generateTransactions, DOMAIN_TO_SOURCE } from "./data/mo
 // Nav key → canonical page key
 const KEY_MAP = {
   dashboard:         "dashboard",
+  activities:        "activities",
   case_creation:     "case_creation",
   cases:             "cases",
   my_cases:          "cases",
@@ -248,6 +250,7 @@ export default function SCMApp() {
   return (
     <>
       {activePage === "dashboard"      && <SCMDashboard         {...p} cases={cases} />}
+      {activePage === "activities"     && <SCMActivities        {...p} />}
       {activePage === "case_creation"  && <SCMCaseCreation      {...p} transactions={transactions} cases={cases} onCaseCreated={onCaseCreated} />}
       {activePage === "cases"          && <SCMCaseList          {...p} cases={cases} casesLoading={casesLoading} onCaseUpdated={onCaseUpdated} initialNavKey={initialNavKey} />}
       {activePage === "case_detail"    && <SCMCaseDetail        {...p} key={selectedCase?.id} initialCase={selectedCase} onCaseUpdated={onCaseUpdated} />}

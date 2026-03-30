@@ -102,6 +102,7 @@ function SubItem({ navKey, label, sublabel, icon, count, activePage, onNavClick 
 // ─── İkonlar ─────────────────────────────────────────────────────
 const I = {
   Dashboard:         () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+  Activity:          () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
   CaseCreate:        () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>,
   Cases:             () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,
   MyCases:           () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
@@ -344,6 +345,7 @@ export default function Sidebar({
 
         {!isAdmin && <NavBtn navKey="txn_search" label="İşlem Arama" sublabel="Transaction Search" icon={<I.TransactionSearch />} activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />}
         <NavBtn navKey="reports"    label="Raporlar"    sublabel="Reports"             icon={<I.Reports />}           activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />
+        {!isAdmin && <NavBtn navKey="activities"    label="Son Aktiviteler" sublabel="Recent Activities"   icon={<I.Activity />}        activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />}
         {isAdmin && (
           <NavBtn navKey="settings" label="Ayarlar" sublabel="Settings" icon={<I.Settings />} activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />
         )}
