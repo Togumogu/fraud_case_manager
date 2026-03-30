@@ -5,7 +5,18 @@
       "Bash(powershell.exe -Command \"New-Item -ItemType Directory -Force -Path 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages' | Out-Null; $files = @\\('SCM_Dashboard.jsx','SCM_CaseList.jsx','SCM_CaseCreation.jsx','SCM_CaseDetail.jsx','SCM_Review.jsx','SCM_TransactionSearch.jsx','SCM_Reports.jsx','SCM_Settings.jsx'\\); foreach \\($f in $files\\) { Copy-Item \\\\\"C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\$f\\\\\" \\\\\"C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages\\\\$f\\\\\" -Force; Write-Host \\\\\"Copied: $f\\\\\" }; Write-Host 'Done'; Get-ChildItem 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages' | Select-Object Name\")",
       "Bash(powershell -Command \"Copy-Item 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\SCM_Dashboard.jsx' 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages\\\\SCM_Dashboard.jsx' -Force; Copy-Item 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\SCM_CaseCreation.jsx' 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages\\\\SCM_CaseCreation.jsx' -Force; Copy-Item 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\SCM_CaseDetail.jsx' 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages\\\\SCM_CaseDetail.jsx' -Force; Copy-Item 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\SCM_Review.jsx' 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages\\\\SCM_Review.jsx' -Force; Copy-Item 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\SCM_TransactionSearch.jsx' 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages\\\\SCM_TransactionSearch.jsx' -Force; Copy-Item 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\SCM_Reports.jsx' 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages\\\\SCM_Reports.jsx' -Force; Copy-Item 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\SCM_Settings.jsx' 'C:\\\\Users\\\\ToygunBaysal\\\\OneDrive - SADE TR\\\\Masaüstü\\\\SCM\\\\scm-app\\\\src\\\\pages\\\\SCM_Settings.jsx' -Force; Write-Host 'Done'\")",
       "Bash(node:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(npm run:*)",
+      "Bash(grep -v \"^$\")",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_type",
+      "mcp__claude_ai_Figma__whoami",
+      "mcp__claude_ai_Figma__get_metadata"
     ]
   }
 }

@@ -1,4 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import Sidebar from "../components/Sidebar";
+import Card from "../components/Card";
+import Table from "../components/Table";
+import { SEVERITY_CONFIG } from "../components/Badge";
+import { dashboard as dashboardApi, approvals as approvalsApi, cases as casesApi } from "../api/client";
 
 // --- Mock Data ---
 const USERS = {
@@ -83,12 +88,6 @@ const Icons = {
   LogOut: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
 };
 
-const SEVERITY_CONFIG = {
-  critical: { label: "Kritik", bg: "#FEE2E2", color: "#991B1B", border: "#FECACA" },
-  high: { label: "Yüksek", bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
-  medium: { label: "Orta", bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" },
-  low: { label: "Düşük", bg: "#F3F4F6", color: "#374151", border: "#E5E7EB" },
-};
 
 const ACTION_ICONS = {
   create: { icon: "+", color: "#059669" },
@@ -99,6 +98,29 @@ const ACTION_ICONS = {
   approve: { icon: "✓", color: "#059669" },
   review: { icon: "◎", color: "#7C3AED" },
 };
+
+// --- Helper functions ---
+function formatRelativeTime(isoStr) {
+  if (!isoStr) return '';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Az önce';
+  if (mins < 60) return `${mins} dk önce`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} sa önce`;
+  return `${Math.floor(hrs / 24)} gün önce`;
+}
+
+function formatDate(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}.${mm}.${yyyy} ${hh}:${mi}`;
+}
 
 // --- Style constants ---
 const COLORS = {
@@ -118,37 +140,91 @@ const COLORS = {
   danger: "#DC2626",
 };
 
-export default function SCMDashboard({ onNavigate } = {}) {
-  const [currentRole, setCurrentRole] = useState("manager");
+export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRoleChange, cases, notifications = [], onMarkAllRead, onMarkRead, showToast } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeNav, setActiveNav] = useState("dashboard");
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [assignDropdown, setAssignDropdown] = useState(null);
   const [animatedKPIs, setAnimatedKPIs] = useState({});
+  const [kpiLoading, setKpiLoading] = useState(true);
   const [selectedDomain, setSelectedDomain] = useState("payment");
-  const [domainMenuOpen, setDomainMenuOpen] = useState(false);
+  const [recentActivities, setRecentActivities] = useState(RECENT_ACTIVITIES);
+  const [pendingApprovals, setPendingApprovals] = useState(PENDING_APPROVALS);
+  const [unassignedCases, setUnassignedCases] = useState(UNASSIGNED_CASES);
 
   const user = USERS[currentRole];
   const isManager = currentRole === "manager" || currentRole === "admin";
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setAnimatedKPIs(KPI_DATA);
-    }, 200);
-    return () => clearTimeout(timer);
-  }, []);
+    let cancelled = false;
+    setKpiLoading(true);
+    // Try to load from API; fall back to mock constants on error
+    Promise.all([
+      dashboardApi.kpis(),
+      dashboardApi.activity(),
+      dashboardApi.unassignedCases(),
+      ...(isManager ? [approvalsApi.list({ status: 'pending' })] : []),
+    ]).then(([kpis, activity, unassigned, approvalsData]) => {
+      if (cancelled) return;
+      // KPIs — compute myCases from passed cases prop
+      const USERS_BY_ROLE = { analyst: "Elif Yılmaz", manager: "Burak Şen", admin: "Zeynep Demir" };
+      const myName = USERS_BY_ROLE[currentRole];
+      const myCases = cases ? cases.filter(c => c.status !== "Deleted" && !c.is_deleted && c.owner === myName).length : 0;
+      setTimeout(() => { if (!cancelled) setAnimatedKPIs({ ...kpis, myCases }); }, 200);
+      setKpiLoading(false);
 
-  const navItems = [
-    { key: "dashboard", label: "Dashboard", sublabel: "Ana Sayfa", icon: <Icons.Dashboard /> },
-    { key: "case_creation", label: "Vaka Oluşturma", sublabel: "Case Creation", icon: <Icons.CaseCreate /> },
-    { key: "cases", label: "Vaka Listesi", sublabel: "Case List", icon: <Icons.Cases /> },
-    { key: "my_cases", label: "Vakalarım", sublabel: "My Cases", icon: <Icons.MyCases /> },
-    { key: "txn_search", label: "İşlem Arama", sublabel: "Transaction Search", icon: <Icons.TransactionSearch /> },
-    { key: "reports", label: "Raporlar", sublabel: "Reports", icon: <Icons.Reports /> },
-    ...(currentRole === "admin" ? [{ key: "settings", label: "Ayarlar", sublabel: "Settings", icon: <Icons.Settings /> }] : []),
-  ];
+      // Activity feed — map to display format
+      const ACTION_TYPE_MAP = { create: "create", comment: "comment", assign: "assign", upload: "upload", close: "close", review: "review", approve: "approve", delete: "close" };
+      setRecentActivities(activity.map((a, i) => ({
+        id: a.id || i,
+        user: a.user_name,
+        action: a.action,
+        caseId: `#${a.case_id}`,
+        caseName: a.case_name || '',
+        time: formatRelativeTime(a.created_at),
+        type: ACTION_TYPE_MAP[a.action_type] || 'create',
+      })));
+
+      // Unassigned cases
+      setUnassignedCases(unassigned.map(c => ({
+        id: c.id,
+        name: c.name,
+        date: c.date,
+        severity: c.severity,
+        domain: c.domain,
+      })));
+
+      // Approvals (manager/admin only)
+      if (approvalsData) {
+        setPendingApprovals(approvalsData.map(a => ({
+          id: a.id,
+          type: a.type,
+          caseId: `#${a.case_id}`,
+          caseName: a.case_name,
+          requestedBy: a.requested_by,
+          requestedAt: formatDate(a.requested_at),
+          reason: a.reason,
+          severity: a.severity,
+        })));
+      }
+    }).catch((err) => {
+      if (cancelled) return;
+      // API unavailable — use mock KPI_DATA
+      setTimeout(() => { if (!cancelled) setAnimatedKPIs(KPI_DATA); }, 200);
+      setKpiLoading(false);
+      if (showToast) showToast("error", err?.message || "Dashboard verileri yüklenemedi");
+    });
+    return () => { cancelled = true; };
+  }, [currentRole]);
+
+  const handleApproval = (approval, approved) => {
+    const numericId = parseInt(String(approval.caseId).replace('#', ''), 10);
+    approvalsApi.update(approval.id, { status: approved ? 'approved' : 'rejected', approved_by: currentRole })
+      .catch((err) => { if (showToast) showToast("error", err?.message || "Onay işlemi başarısız"); });
+    casesApi.update(numericId, { status: approved ? 'Closed' : 'Open', update_user: currentRole })
+      .catch((err) => { if (showToast) showToast("error", err?.message || "Vaka durumu güncellenemedi"); });
+    setPendingApprovals(prev => prev.filter(a => a.id !== approval.id));
+    if (showToast) showToast("success", approved ? "Onay verildi" : "Onay reddedildi");
+    dashboardApi.kpis().then(k => setAnimatedKPIs(prev => ({ ...prev, ...k }))).catch(() => {});
+  };
 
   const kpiCards = [
     { key: "totalCases", label: "Toplam Vaka", sublabel: "Total Cases", value: animatedKPIs.totalCases || 0, icon: <Icons.TotalCases />, color: "#3B82F6", bg: "#EFF6FF", nav: "cases" },
@@ -162,256 +238,136 @@ export default function SCMDashboard({ onNavigate } = {}) {
   const now = new Date();
   const dateStr = now.toLocaleDateString("tr-TR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
-  return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "'DM Sans', 'Segoe UI', -apple-system, sans-serif", background: COLORS.bg, color: COLORS.text, overflow: "hidden", ...(darkMode ? {filter:"invert(1) hue-rotate(180deg)"} : {}) }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
-      {/* Sidebar */}
-      <aside style={{
-        width: sidebarCollapsed ? 72 : 260,
-        background: COLORS.sidebar,
-        display: "flex",
-        flexDirection: "column",
-        transition: "width 0.3s cubic-bezier(0.4,0,0.2,1)",
-        flexShrink: 0,
-        zIndex: 100,
-        position: "relative",
-      }}>
-        {/* Logo */}
-        <div style={{ padding: sidebarCollapsed ? "20px 16px" : "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, minHeight: 72 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>
-            S
-          </div>
-          {!sidebarCollapsed && (
-            <div style={{ overflow: "hidden" }}>
-              <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>SADE SCM</div>
-              <div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div>
-            </div>
-          )}
-        </div>
-
-        {/* Domain Seçimi */}
-        <div style={{ padding: sidebarCollapsed ? "10px 8px" : "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          {!sidebarCollapsed && (
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, padding: "0 4px" }}>
-              Domain Seçimi
-            </div>
-          )}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setDomainMenuOpen(!domainMenuOpen)}
-              title={sidebarCollapsed ? FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label : undefined}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 10,
-                padding: sidebarCollapsed ? "8px" : "8px 12px",
-                borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.05)", cursor: "pointer",
-                color: "#E2E8F0", transition: "all 0.15s ease",
-                justifyContent: sidebarCollapsed ? "center" : "space-between",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-              onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 14 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.icon}</span>
-                {!sidebarCollapsed && (
-                  <span style={{ fontSize: 12.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label}
-                  </span>
-                )}
-              </div>
-              {!sidebarCollapsed && (
-                <span style={{ transition: "transform 0.2s ease", transform: domainMenuOpen ? "rotate(180deg)" : "rotate(0deg)", display: "flex", flexShrink: 0, color: "#64748B" }}>
-                  <Icons.ChevronDown />
-                </span>
-              )}
-            </button>
-            {domainMenuOpen && (
-              <div style={{
-                position: "absolute", top: "calc(100% + 4px)", left: 0,
-                width: sidebarCollapsed ? 200 : "100%",
-                background: "#1E293B", borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.1)",
-                boxShadow: "0 12px 40px rgba(0,0,0,0.4)", zIndex: 300,
-                overflow: "hidden",
-                ...(sidebarCollapsed ? { left: 8 } : {}),
-              }}>
-                {FRAUD_DOMAINS.map(domain => (
-                  <div
-                    key={domain.id}
-                    onClick={() => { setSelectedDomain(domain.id); setDomainMenuOpen(false); }}
-                    style={{
-                      padding: "10px 14px", cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 10,
-                      background: selectedDomain === domain.id ? "rgba(59,130,246,0.15)" : "transparent",
-                      transition: "all 0.1s ease",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = selectedDomain === domain.id ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.05)"}
-                    onMouseLeave={e => e.currentTarget.style.background = selectedDomain === domain.id ? "rgba(59,130,246,0.15)" : "transparent"}
-                  >
-                    <span style={{ fontSize: 13 }}>{domain.icon}</span>
-                    <span style={{ fontSize: 12.5, fontWeight: selectedDomain === domain.id ? 600 : 400, color: selectedDomain === domain.id ? "#60A5FA" : "#CBD5E1" }}>
-                      {domain.label}
-                    </span>
-                    {selectedDomain === domain.id && (
-                      <span style={{ marginLeft: "auto", color: "#60A5FA", display: "flex" }}><Icons.Check /></span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Nav Items */}
-        <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
-          {navItems.map(item => (
-            <button
-              key={item.key}
-              onClick={() => { setActiveNav(item.key); if (onNavigate) onNavigate(item.key); }}
-              title={sidebarCollapsed ? item.label : undefined}
-              style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: sidebarCollapsed ? "12px 16px" : "10px 16px",
-                borderRadius: 8, border: "none", cursor: "pointer",
-                background: activeNav === item.key ? "rgba(59,130,246,0.15)" : "transparent",
-                color: activeNav === item.key ? "#60A5FA" : "#94A3B8",
-                transition: "all 0.15s ease",
-                width: "100%", textAlign: "left",
-                justifyContent: sidebarCollapsed ? "center" : "flex-start",
-              }}
-              onMouseEnter={e => { if (activeNav !== item.key) e.currentTarget.style.background = COLORS.sidebarHover; }}
-              onMouseLeave={e => { if (activeNav !== item.key) e.currentTarget.style.background = "transparent"; }}
-            >
-              <span style={{ flexShrink: 0, display: "flex" }}>{item.icon}</span>
-              {!sidebarCollapsed && (
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: activeNav === item.key ? 600 : 500, lineHeight: 1.3 }}>{item.label}</div>
-                  <div style={{ fontSize: 10.5, color: "#475569", lineHeight: 1.2 }}>{item.sublabel}</div>
-                </div>
-              )}
-            </button>
-          ))}
-        </nav>
-
-        {/* User Profile + Notifications */}
-        <div style={{ padding: sidebarCollapsed ? "16px 8px" : "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
-            <div onClick={() => setShowUserMenu(!showUserMenu)} style={{
-              width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-              background: "linear-gradient(135deg, #6366F1, #8B5CF6)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer",
-            }}>
-              {user.name.split(" ").map(n => n[0]).join("")}
-            </div>
-            {!sidebarCollapsed && (
-              <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ flex: 1, overflow: "hidden", cursor: "pointer" }}>
-                <div style={{ color: "#E2E8F0", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{user.name}</div>
-                <div style={{ color: "#64748B", fontSize: 11, textTransform: "capitalize" }}>{user.role === "analyst" ? "Fraud Analist" : user.role === "manager" ? "Yönetici" : "Admin"}</div>
-              </div>
-            )}
-            {/* Dark Mode Toggle */}
-            <button onClick={e => { e.stopPropagation(); setDarkMode(d => !d); }} title={darkMode ? "Açık Mod" : "Koyu Mod"} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8", flexShrink: 0 }}>
-              {darkMode ? <Icons.Sun /> : <Icons.Moon />}
-            </button>
-            {/* Notification Bell */}
-            <div style={{ position: "relative", flexShrink: 0 }}>
+  // Column definitions for the Unassigned Cases table — defined here so render
+  // functions can close over assignDropdown / setAssignDropdown / isManager.
+  const unassignedColumns = useMemo(() => [
+    {
+      key: "id",
+      label: "Case ID",
+      width: 90,
+      sortable: true,
+      monospace: true,
+      render: v => (
+        <span style={{ fontWeight: 700, color: COLORS.primaryLight }}>#{v}</span>
+      ),
+    },
+    {
+      key: "name",
+      label: "Vaka Adı",
+      sortable: true,
+      maxWidth: 220,
+      render: v => <span style={{ fontWeight: 500 }}>{v}</span>,
+    },
+    {
+      key: "date",
+      label: "Tarih",
+      sortable: true,
+      render: v => <span style={{ color: COLORS.textSecondary, fontSize: 12 }}>{v}</span>,
+    },
+    {
+      key: "severity",
+      label: "Önem",
+      render: v => <Table.Badge config={SEVERITY_CONFIG[v]} />,
+    },
+    {
+      key: "_action",
+      label: "",
+      width: 120,
+      render: (_, row) => (
+        <div style={{ position: "relative" }}>
+          {isManager ? (
+            <>
               <button
-                onClick={(e) => { e.stopPropagation(); setShowNotifications(!showNotifications); }}
+                onClick={e => { e.stopPropagation(); setAssignDropdown(assignDropdown === row.id ? null : row.id); }}
                 style={{
-                  width: 34, height: 34, borderRadius: 8, border: "none",
-                  background: showNotifications ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)",
-                  cursor: "pointer", display: "flex",
-                  alignItems: "center", justifyContent: "center", position: "relative",
-                  color: showNotifications ? "#60A5FA" : "#94A3B8",
-                  transition: "all 0.15s ease",
+                  padding: "6px 16px", borderRadius: 7, fontSize: 12, fontWeight: 600,
+                  background: COLORS.primary, color: "#fff", border: "none",
+                  cursor: "pointer", transition: "opacity 0.15s",
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-                onMouseLeave={e => e.currentTarget.style.background = showNotifications ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)"}
+                onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
+                onMouseLeave={e => e.currentTarget.style.opacity = "1"}
               >
-                <Icons.Bell />
-                <span style={{
-                  position: "absolute", top: 2, right: 2, width: 16, height: 16,
-                  borderRadius: "50%", background: COLORS.danger, color: "#fff",
-                  fontSize: 9, fontWeight: 700, display: "flex",
-                  alignItems: "center", justifyContent: "center",
-                  border: "2px solid #0F172A",
-                }}>3</span>
+                Ata
               </button>
-              {showNotifications && (
+              {assignDropdown === row.id && (
                 <div
                   onClick={e => e.stopPropagation()}
                   style={{
-                    position: "fixed", bottom: 72,
-                    left: sidebarCollapsed ? 80 : 268,
-                    width: 360,
-                    background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`,
-                    boxShadow: "0 8px 40px rgba(0,0,0,0.18), 0 2px 12px rgba(0,0,0,0.08)", zIndex: 300,
-                    overflow: "hidden", color: COLORS.text,
-                    transition: "left 0.3s cubic-bezier(0.4,0,0.2,1)",
+                    position: "absolute", top: "100%", right: 0, marginTop: 4,
+                    width: 220, background: "#fff", borderRadius: 10,
+                    border: `1px solid ${COLORS.border}`,
+                    boxShadow: "0 12px 40px rgba(0,0,0,0.12)", zIndex: 50,
+                    overflow: "hidden",
                   }}
                 >
-                  <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#F8FAFC" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontWeight: 700, fontSize: 15 }}>Bildirimler</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: COLORS.danger, color: "#fff" }}>3 yeni</span>
-                    </div>
-                    <span style={{ fontSize: 12, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 600 }}>Tümünü Okundu İşaretle</span>
+                  <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 11.5, fontWeight: 600, color: COLORS.textSecondary }}>
+                    Kullanıcı Seç
                   </div>
-                  <div style={{ maxHeight: 320, overflow: "auto" }}>
-                    {[
-                      { msg: "Vaka #2469 için kapatma onayı bekliyor", time: "5 dk önce", unread: true },
-                      { msg: "Vaka #2471 size atandı", time: "2 sa önce", unread: true },
-                      { msg: "Elif Yılmaz review tamamladı (#2465)", time: "4 sa önce", unread: true },
-                    ].map((n, i) => (
-                      <div key={i} style={{
-                        padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`,
-                        cursor: "pointer", background: n.unread ? "#FAFBFE" : "#fff",
-                        display: "flex", alignItems: "flex-start", gap: 12,
+                  {ACTIVE_USERS.map(u => (
+                    <div
+                      key={u.id}
+                      onClick={() => {
+                        casesApi.update(row.id, { owner: u.name, update_user: user.name })
+                          .then(() => {
+                            setUnassignedCases(prev => prev.filter(c => c.id !== row.id));
+                            if (showToast) showToast("success", `Vaka #${row.id} — ${u.name} kişisine atandı`);
+                          })
+                          .catch((err) => { if (showToast) showToast("error", err?.message || "Atama başarısız"); });
+                        setAssignDropdown(null);
                       }}
-                        onMouseEnter={e => e.currentTarget.style.background = "#F1F5F9"}
-                        onMouseLeave={e => e.currentTarget.style.background = n.unread ? "#FAFBFE" : "#fff"}
-                      >
-                        {n.unread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.primaryLight, flexShrink: 0, marginTop: 6 }} />}
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13.5, color: COLORS.text, lineHeight: 1.5, fontWeight: n.unread ? 500 : 400 }}>{n.msg}</div>
-                          <div style={{ fontSize: 11.5, color: COLORS.textSecondary, marginTop: 3 }}>{n.time}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ padding: "12px 20px", borderTop: `1px solid ${COLORS.border}`, textAlign: "center", background: "#F8FAFC" }}>
-                    <span style={{ fontSize: 12.5, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 600 }}>Tüm Bildirimleri Gör →</span>
-                  </div>
+                      style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#F1F5F9"}
+                      onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                    >
+                      <span style={{ fontWeight: 500 }}>{u.name}</span>
+                      <span style={{ fontSize: 11, color: COLORS.textSecondary }}>{u.role}</span>
+                    </div>
+                  ))}
                 </div>
               )}
-            </div>
-          </div>
-          {showUserMenu && (
-            <div onClick={e => e.stopPropagation()} style={{ position: "fixed", bottom: 72, left: sidebarCollapsed ? 80 : 268, background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 180, zIndex: 400, overflow: "hidden" }}>
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid #E2E8F0", fontSize: 12, color: "#64748B" }}>{user.name}</div>
-              <button onClick={() => setShowUserMenu(false)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 16px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#EF4444", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.background = "#FEF2F2"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}><Icons.LogOut /> Çıkış Yap</button>
-            </div>
+            </>
+          ) : (
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                casesApi.update(row.id, { owner: user.name, update_user: user.name })
+                  .then(() => {
+                    setUnassignedCases(prev => prev.filter(c => c.id !== row.id));
+                    if (showToast) showToast("success", `Vaka #${row.id} üstünüze atandı`);
+                  })
+                  .catch((err) => { if (showToast) showToast("error", err?.message || "Atama başarısız"); });
+              }}
+              style={{
+                padding: "6px 16px", borderRadius: 7, fontSize: 12, fontWeight: 600,
+                background: "#fff", color: COLORS.primary,
+                border: `1px solid ${COLORS.primary}`, cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = COLORS.primary; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = COLORS.primary; }}
+            >
+              Üstüme Al
+            </button>
           )}
         </div>
+      ),
+    },
+  ], [assignDropdown, setAssignDropdown, isManager]);
 
-        {/* Collapse Toggle */}
-        <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          style={{
-            position: "absolute", top: 24, right: -14, width: 28, height: 28,
-            borderRadius: "50%", border: `2px solid ${COLORS.border}`,
-            background: "#fff", cursor: "pointer", display: "flex",
-            alignItems: "center", justifyContent: "center",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)", zIndex: 101,
-            transition: "transform 0.3s ease",
-            transform: sidebarCollapsed ? "rotate(0deg)" : "rotate(180deg)",
-          }}
-        >
-          <Icons.ChevronRight />
-        </button>
-      </aside>
+  return (
+    <div className="scm-layout">
+      <Sidebar
+        activePage="dashboard"
+        onNavigate={onNavigate}
+        user={USERS[currentRole]}
+        selectedDomain={selectedDomain}
+        onDomainChange={setSelectedDomain}
+        collapsed={sidebarCollapsed}
+        onCollapseToggle={() => setSidebarCollapsed(c => !c)}
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        onMarkRead={onMarkRead}
+      />
 
       {/* Main Content */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -431,7 +387,7 @@ export default function SCMDashboard({ onNavigate } = {}) {
               {["analyst", "manager", "admin"].map(role => (
                 <button
                   key={role}
-                  onClick={() => setCurrentRole(role)}
+                  onClick={() => onRoleChange && onRoleChange(role)}
                   style={{
                     padding: "6px 14px", fontSize: 11.5, fontWeight: 600, border: "none",
                     cursor: "pointer", letterSpacing: "0.02em",
@@ -453,7 +409,7 @@ export default function SCMDashboard({ onNavigate } = {}) {
         </header>
 
         {/* Content Area */}
-        <main style={{ flex: 1, overflow: "auto", padding: 28 }} onClick={() => { setShowNotifications(false); setAssignDropdown(null); setDomainMenuOpen(false); setShowUserMenu(false); }}>
+        <main style={{ flex: 1, overflow: "auto", padding: 28 }} onClick={() => { setAssignDropdown(null); }}>
           {/* Welcome Banner */}
           <div style={{
             background: "linear-gradient(135deg, #1E3A8A 0%, #1E40AF 50%, #2563EB 100%)",
@@ -472,32 +428,31 @@ export default function SCMDashboard({ onNavigate } = {}) {
 
           {/* KPI Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
-            {kpiCards.map((card, i) => (
-              <div
-                key={card.key}
-                onClick={() => { setActiveNav(card.nav); if (onNavigate) onNavigate(card.nav); }}
-                style={{
-                  background: "#fff", borderRadius: 14, padding: "20px",
-                  border: `1px solid ${COLORS.border}`,
-                  cursor: "pointer", transition: "all 0.2s ease",
-                  position: "relative", overflow: "hidden",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 25px rgba(0,0,0,0.08)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 12, background: card.bg, display: "flex", alignItems: "center", justifyContent: "center", color: card.color }}>
-                    {card.icon}
+            {kpiLoading
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} style={{
+                    background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`,
+                    padding: "22px 20px", display: "flex", flexDirection: "column", gap: 12,
+                  }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: "#E2E8F0", animation: "kpiPulse 1.4s ease-in-out infinite" }} />
+                    <div style={{ height: 28, width: "55%", borderRadius: 6, background: "#E2E8F0", animation: "kpiPulse 1.4s ease-in-out infinite" }} />
+                    <div style={{ height: 14, width: "70%", borderRadius: 4, background: "#F1F5F9", animation: "kpiPulse 1.4s ease-in-out infinite" }} />
+                    <style>{`@keyframes kpiPulse{0%,100%{opacity:1}50%{opacity:.45}}`}</style>
                   </div>
-                  <Icons.ChevronRight />
-                </div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: card.color, lineHeight: 1, marginBottom: 6, fontFamily: "'JetBrains Mono', monospace" }}>
-                  {card.value}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>{card.label}</div>
-                <div style={{ fontSize: 11, color: COLORS.textSecondary }}>{card.sublabel}</div>
-              </div>
-            ))}
+                ))
+              : kpiCards.map((card) => (
+                  <Card.KPI
+                    key={card.key}
+                    icon={card.icon}
+                    value={card.value}
+                    label={card.label}
+                    sublabel={card.sublabel}
+                    iconColor={card.color}
+                    accentColor={card.color}
+                    onClick={() => { if (onNavigate) onNavigate(card.nav); }}
+                  />
+                ))
+            }
           </div>
 
           {/* Row 2: Panels */}
@@ -514,7 +469,7 @@ export default function SCMDashboard({ onNavigate } = {}) {
                 <span style={{ fontSize: 12, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 500 }}>Tümünü Gör →</span>
               </div>
               <div style={{ maxHeight: 380, overflow: "auto" }}>
-                {RECENT_ACTIVITIES.slice(0, isManager ? 7 : 4).map(act => {
+                {recentActivities.slice(0, isManager ? 7 : 4).map(act => {
                   const actionCfg = ACTION_ICONS[act.type];
                   return (
                     <div
@@ -558,11 +513,11 @@ export default function SCMDashboard({ onNavigate } = {}) {
                     background: "#FEF3C7", color: "#92400E",
                     fontSize: 12, fontWeight: 600,
                   }}>
-                    {PENDING_APPROVALS.length} bekleyen
+                    {pendingApprovals.length} bekleyen
                   </div>
                 </div>
                 <div style={{ maxHeight: 380, overflow: "auto" }}>
-                  {PENDING_APPROVALS.map(approval => (
+                  {pendingApprovals.map(approval => (
                     <div
                       key={approval.id}
                       style={{ padding: "16px 22px", borderBottom: `1px solid ${COLORS.border}` }}
@@ -602,6 +557,7 @@ export default function SCMDashboard({ onNavigate } = {}) {
                         }}
                           onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
                           onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                          onClick={() => handleApproval(approval, true)}
                         >
                           <Icons.Check /> Onayla
                         </button>
@@ -615,6 +571,7 @@ export default function SCMDashboard({ onNavigate } = {}) {
                         }}
                           onMouseEnter={e => { e.currentTarget.style.background = COLORS.danger; e.currentTarget.style.color = "#fff"; }}
                           onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = COLORS.danger; }}
+                          onClick={() => handleApproval(approval, false)}
                         >
                           <Icons.X /> Reddet
                         </button>
@@ -635,98 +592,13 @@ export default function SCMDashboard({ onNavigate } = {}) {
               </div>
               <span style={{ fontSize: 12, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 500 }}>Vaka Listesi →</span>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: "#F8FAFC" }}>
-                    {["Case ID", "Vaka Adı", "Alan (Domain)", "Tarih", "Önem", ""].map((h, i) => (
-                      <th key={i} style={{ padding: "10px 22px", textAlign: "left", fontWeight: 600, color: COLORS.textSecondary, fontSize: 11.5, letterSpacing: "0.03em", textTransform: "uppercase", borderBottom: `1px solid ${COLORS.border}` }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {UNASSIGNED_CASES.map(c => {
-                    const sev = SEVERITY_CONFIG[c.severity];
-                    return (
-                      <tr key={c.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}
-                        onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
-                        onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-                      >
-                        <td style={{ padding: "12px 22px", fontWeight: 600, color: COLORS.primaryLight, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>#{c.id}</td>
-                        <td style={{ padding: "12px 22px", fontWeight: 500 }}>{c.name}</td>
-                        <td style={{ padding: "12px 22px" }}>
-                          <span style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 5, background: "#F1F5F9", color: COLORS.textSecondary, fontWeight: 500 }}>{c.domain}</span>
-                        </td>
-                        <td style={{ padding: "12px 22px", color: COLORS.textSecondary, fontSize: 12 }}>{c.date}</td>
-                        <td style={{ padding: "12px 22px" }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 5, background: sev.bg, color: sev.color, border: `1px solid ${sev.border}` }}>
-                            {sev.label}
-                          </span>
-                        </td>
-                        <td style={{ padding: "12px 22px", position: "relative" }}>
-                          {isManager ? (
-                            <div style={{ position: "relative" }}>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setAssignDropdown(assignDropdown === c.id ? null : c.id); }}
-                                style={{
-                                  padding: "6px 16px", borderRadius: 7, fontSize: 12, fontWeight: 600,
-                                  background: COLORS.primary, color: "#fff", border: "none",
-                                  cursor: "pointer", transition: "all 0.15s ease",
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
-                                onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-                              >
-                                Ata
-                              </button>
-                              {assignDropdown === c.id && (
-                                <div
-                                  onClick={e => e.stopPropagation()}
-                                  style={{
-                                    position: "absolute", top: "100%", right: 0, marginTop: 4,
-                                    width: 220, background: "#fff", borderRadius: 10,
-                                    border: `1px solid ${COLORS.border}`,
-                                    boxShadow: "0 12px 40px rgba(0,0,0,0.12)", zIndex: 50,
-                                    overflow: "hidden",
-                                  }}>
-                                  <div style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 11.5, fontWeight: 600, color: COLORS.textSecondary }}>
-                                    Kullanıcı Seç
-                                  </div>
-                                  {ACTIVE_USERS.map(u => (
-                                    <div
-                                      key={u.id}
-                                      style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}
-                                      onMouseEnter={e => e.currentTarget.style.background = "#F1F5F9"}
-                                      onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-                                      onClick={() => setAssignDropdown(null)}
-                                    >
-                                      <span style={{ fontWeight: 500 }}>{u.name}</span>
-                                      <span style={{ fontSize: 11, color: COLORS.textSecondary }}>{u.role}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <button style={{
-                              padding: "6px 16px", borderRadius: 7, fontSize: 12, fontWeight: 600,
-                              background: "#fff", color: COLORS.primary, border: `1px solid ${COLORS.primary}`,
-                              cursor: "pointer", transition: "all 0.15s ease",
-                            }}
-                              onMouseEnter={e => { e.currentTarget.style.background = COLORS.primary; e.currentTarget.style.color = "#fff"; }}
-                              onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = COLORS.primary; }}
-                            >
-                              Üstüme Al
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <Table
+              columns={unassignedColumns}
+              rows={unassignedCases}
+              keyProp="id"
+              paginate={false}
+              emptyMessage="Atanmamış vaka bulunamadı."
+            />
           </div>
 
           {/* Footer spacer */}

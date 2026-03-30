@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import Sidebar from "../components/Sidebar";
 
 const USERS = {
   analyst: { id: 1, name: "Elif Yılmaz", role: "analyst", roleLabel: "Fraud Analist" },
@@ -170,16 +171,10 @@ const Icons = {
 const CatIcon = ({type,size=15})=>{const s={width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"};const m={folder:<svg {...s}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,shield:<svg {...s}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,bell:<svg {...s}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>,list:<svg {...s}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>,users:<svg {...s}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>,chart:<svg {...s}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,lock:<svg {...s}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,more:<svg {...s}><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>};return m[type]||m.folder;};
 const Badge=({label,bg,color})=><span style={{padding:"3px 8px",borderRadius:4,fontSize:11.5,fontWeight:500,background:bg,color,whiteSpace:"nowrap"}}>{label}</span>;
 
-export default function SCMReports({ onNavigate } = {}) {
-  const [currentRole,setCurrentRole]=useState("manager");
+export default function SCMReports({ onNavigate, currentRole = "analyst", onRoleChange, notifications = [], onMarkAllRead, onMarkRead } = {}) {
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
-  const [activeNav,setActiveNav]=useState("reports");
-  const [showNotifications,setShowNotifications]=useState(false);
-  const [darkMode,setDarkMode]=useState(false);
-  const [showUserMenu,setShowUserMenu]=useState(false);
   const [selectedDomain,setSelectedDomain]=useState("payment");
-  const [domainMenuOpen,setDomainMenuOpen]=useState(false);
-  const [reportMode,setReportMode]=useState("standard");
+  const [reportMode]=useState("standard");
   const [selectedCategory,setSelectedCategory]=useState(null);
   const [selectedReport,setSelectedReport]=useState(null);
   const [dateFrom,setDateFrom]=useState("");const [dateTo,setDateTo]=useState("");
@@ -212,9 +207,6 @@ export default function SCMReports({ onNavigate } = {}) {
     {id:3,name:"Kullanıcı SLA Raporu",ranAt:"04.03.2026 16:45",dateRange:"01.01 - 28.02.2026",type:"online"},
   ];
 
-  const sW=sidebarCollapsed?72:260;
-  const user=USERS[currentRole];
-  const currentDomain=FRAUD_DOMAINS.find(d=>d.id===selectedDomain);
   const canRun=dateFrom&&dateTo;
 
   // Compute filtered preview cases (shown before running report)
@@ -234,16 +226,6 @@ export default function SCMReports({ onNavigate } = {}) {
 
   const filteredCats=searchQuery?REPORT_CATEGORIES.map(c=>({...c,reports:c.reports.filter(r=>r.name.toLowerCase().includes(searchQuery.toLowerCase())||r.desc.toLowerCase().includes(searchQuery.toLowerCase()))})).filter(c=>c.reports.length>0):REPORT_CATEGORIES;
 
-  const navItems=[
-    {key:"dashboard",label:"Dashboard",sublabel:"Ana Sayfa",icon:<Icons.Dashboard/>},
-    {key:"case_creation",label:"Vaka Oluşturma",sublabel:"Case Creation",icon:<Icons.CaseCreate/>},
-    {key:"cases",label:"Vaka Listesi",sublabel:"Case List",icon:<Icons.Cases/>},
-    {key:"my_cases",label:"Vakalarım",sublabel:"My Cases",icon:<Icons.MyCases/>},
-    {key:"txn_search",label:"İşlem Arama",sublabel:"Transaction Search",icon:<Icons.TransactionSearch/>},
-    {key:"reports",label:"Raporlar",sublabel:"Reports",icon:<Icons.Reports/>},
-    ...(currentRole==="admin"?[{key:"settings",label:"Ayarlar",sublabel:"Settings",icon:<Icons.Settings/>}]:[]),
-  ];
-
   const SideBtn=({item,active,onClick})=>(
     <button onClick={onClick} title={sidebarCollapsed?item.label:undefined} style={{display:"flex",alignItems:"center",gap:12,padding:sidebarCollapsed?"12px 16px":"10px 16px",borderRadius:8,border:"none",cursor:"pointer",width:"100%",textAlign:"left",background:active?"rgba(59,130,246,0.15)":"transparent",color:active?"#60A5FA":"#94A3B8",transition:"all 0.15s",justifyContent:sidebarCollapsed?"center":"flex-start"}}
       onMouseEnter={e=>{if(!active)e.currentTarget.style.background=C.sidebarHover;}} onMouseLeave={e=>{if(!active)e.currentTarget.style.background=active?"rgba(59,130,246,0.15)":"transparent";}}>
@@ -253,58 +235,21 @@ export default function SCMReports({ onNavigate } = {}) {
   );
 
   return (
-    <div style={{display:"flex",minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans','Segoe UI',-apple-system,sans-serif",...(darkMode?{filter:"invert(1) hue-rotate(180deg)"}:{})}}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+    <div className="scm-layout">
       <style>{`@keyframes slideIn{from{transform:translateY(-10px);opacity:0}to{transform:translateY(0);opacity:1}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
-      {/* SIDEBAR */}
-      <aside style={{width:sW,background:C.sidebar,display:"flex",flexDirection:"column",transition:"width 0.3s cubic-bezier(0.4,0,0.2,1)",flexShrink:0,zIndex:100,position:"relative"}}>
-        <div style={{padding:sidebarCollapsed?"20px 12px 12px":"20px 20px 12px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:36,height:36,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#3B82F6,#1E40AF)",fontSize:16,fontWeight:700,color:"#fff"}}>S</div>
-            {!sidebarCollapsed&&<div><div style={{fontSize:16,fontWeight:700,color:"#F8FAFC",letterSpacing:"-0.02em"}}>SADE</div><div style={{fontSize:10,color:"#64748B",letterSpacing:"0.05em"}}>SCM Platform</div></div>}
-          </div>
-        </div>
-        <div style={{padding:sidebarCollapsed?"10px 8px":"10px 14px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-          <button onClick={e=>{e.stopPropagation();setDomainMenuOpen(!domainMenuOpen);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:sidebarCollapsed?"8px":"8px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.04)",cursor:"pointer",color:"#E2E8F0",justifyContent:sidebarCollapsed?"center":"space-between"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>{currentDomain?.icon}</span>{!sidebarCollapsed&&<span style={{fontSize:12.5,fontWeight:500}}>{currentDomain?.label}</span>}</div>
-            {!sidebarCollapsed&&<Icons.ChevronDown/>}
-          </button>
-          {domainMenuOpen&&<div style={{position:"absolute",left:sW,top:90,background:"#1E293B",borderRadius:10,border:"1px solid rgba(255,255,255,0.1)",boxShadow:"0 8px 32px rgba(0,0,0,0.3)",minWidth:220,zIndex:200,padding:6}}>
-            {FRAUD_DOMAINS.map(d=><button key={d.id} onClick={()=>{setSelectedDomain(d.id);setDomainMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 14px",borderRadius:6,border:"none",cursor:"pointer",textAlign:"left",background:selectedDomain===d.id?"rgba(59,130,246,0.2)":"transparent",color:selectedDomain===d.id?"#60A5FA":"#CBD5E1"}} onMouseEnter={e=>{if(selectedDomain!==d.id)e.currentTarget.style.background="rgba(255,255,255,0.05)";}} onMouseLeave={e=>{if(selectedDomain!==d.id)e.currentTarget.style.background="transparent";}}><span style={{fontSize:16}}>{d.icon}</span><span style={{fontSize:13,fontWeight:500}}>{d.label}</span>{selectedDomain===d.id&&<span style={{marginLeft:"auto"}}><Icons.Check/></span>}</button>)}
-          </div>}
-        </div>
-        <nav style={{flex:1,padding:"12px 10px",display:"flex",flexDirection:"column",gap:2}}>{navItems.map(i=><SideBtn key={i.key} item={i} active={activeNav===i.key} onClick={()=>{ setActiveNav(i.key); if(onNavigate) onNavigate(i.key); }}/>)}</nav>
-        <div style={{padding:sidebarCollapsed?"16px 8px":"16px",borderTop:"1px solid rgba(255,255,255,0.06)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:sidebarCollapsed?"center":"flex-start"}}>
-            <div onClick={()=>setShowUserMenu(!showUserMenu)} style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:"linear-gradient(135deg,#6366F1,#8B5CF6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>{user.name.split(" ").map(n=>n[0]).join("")}</div>
-            {!sidebarCollapsed&&<div onClick={()=>setShowUserMenu(!showUserMenu)} style={{flex:1,overflow:"hidden",cursor:"pointer"}}><div style={{color:"#E2E8F0",fontSize:13,fontWeight:500,whiteSpace:"nowrap",textOverflow:"ellipsis",overflow:"hidden"}}>{user.name}</div><div style={{color:"#64748B",fontSize:11}}>{user.role==="analyst"?"Fraud Analist":user.role==="manager"?"Yönetici":"Admin"}</div></div>}
-            {/* Dark Mode Toggle */}
-            <button onClick={e=>{e.stopPropagation();setDarkMode(d=>!d);}} title={darkMode?"Açık Mod":"Koyu Mod"} style={{width:32,height:32,borderRadius:8,border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#94A3B8",flexShrink:0}}>
-              {darkMode?<Icons.Sun/>:<Icons.Moon/>}
-            </button>
-            <div style={{position:"relative",flexShrink:0}}>
-              <button onClick={e=>{e.stopPropagation();setShowNotifications(!showNotifications);}} style={{width:34,height:34,borderRadius:8,border:"none",background:showNotifications?"rgba(59,130,246,0.2)":"rgba(255,255,255,0.06)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative",color:showNotifications?"#60A5FA":"#94A3B8"}}
-                onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}
-                onMouseLeave={e=>e.currentTarget.style.background=showNotifications?"rgba(59,130,246,0.2)":"rgba(255,255,255,0.06)"}>
-                <Icons.Bell/>
-                <span style={{position:"absolute",top:2,right:2,width:16,height:16,borderRadius:"50%",background:C.danger,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #0F172A"}}>{NOTIFICATIONS.filter(n=>!n.read).length}</span>
-              </button>
-              {showNotifications&&<div onClick={e=>e.stopPropagation()} style={{position:"fixed",bottom:72,left:sidebarCollapsed?80:268,width:340,background:"#fff",borderRadius:14,border:`1px solid ${C.border}`,boxShadow:"0 12px 40px rgba(0,0,0,0.12)",zIndex:300,overflow:"hidden"}}>
-                <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,fontWeight:600,fontSize:14,color:C.text}}>Bildirimler</div>
-                {NOTIFICATIONS.map(n=><div key={n.id} style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,background:n.read?"transparent":"#F0F9FF",display:"flex",gap:10}}><div style={{width:8,height:8,borderRadius:"50%",marginTop:5,flexShrink:0,background:n.read?C.border:C.primaryLight}}/><div><div style={{fontSize:13,color:C.text,lineHeight:1.4}}>{n.msg}</div><div style={{fontSize:11,color:C.textSecondary,marginTop:3,display:"flex",alignItems:"center",gap:4}}><Icons.Clock/> {n.time}</div></div></div>)}
-              </div>}
-            </div>
-          </div>
-          {showUserMenu&&<div onClick={e=>e.stopPropagation()} style={{position:"fixed",bottom:72,left:sidebarCollapsed?80:268,background:"#fff",borderRadius:10,border:"1px solid #E2E8F0",boxShadow:"0 8px 24px rgba(0,0,0,0.12)",width:180,zIndex:400,overflow:"hidden"}}>
-            <div style={{padding:"12px 16px",borderBottom:"1px solid #E2E8F0",fontSize:12,color:"#64748B"}}>{user.name}</div>
-            <button onClick={()=>setShowUserMenu(false)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"12px 16px",border:"none",background:"transparent",cursor:"pointer",fontSize:13,color:"#EF4444",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="#FEF2F2"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><Icons.LogOut/> Çıkış Yap</button>
-          </div>}
-          <div style={{display:"flex",justifyContent:"center",marginTop:8}}>
-            <button onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"8px",borderRadius:8,border:"none",cursor:"pointer",color:"#64748B",background:"transparent"}}>{sidebarCollapsed?<Icons.Expand/>:<Icons.Collapse/>}</button>
-          </div>
-        </div>
-      </aside>
+      <Sidebar
+        activePage="reports"
+        onNavigate={onNavigate}
+        user={USERS[currentRole]}
+        selectedDomain={selectedDomain}
+        onDomainChange={setSelectedDomain}
+        collapsed={sidebarCollapsed}
+        onCollapseToggle={() => setSidebarCollapsed(c => !c)}
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        onMarkRead={onMarkRead}
+      />
 
       {/* MAIN */}
       <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
@@ -313,12 +258,12 @@ export default function SCMReports({ onNavigate } = {}) {
             <div style={{display:"flex",alignItems:"center",gap:8}}><Icons.Reports/><span style={{fontSize:16,fontWeight:700,color:C.text}}>Raporlar</span><span style={{fontSize:12,color:C.textSecondary}}>Reports</span></div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{display:"flex",gap:4,background:"#F1F5F9",borderRadius:8,padding:3}}>{["analyst","manager","admin"].map(r=><button key={r} onClick={()=>setCurrentRole(r)} style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:500,background:currentRole===r?C.primary:"#fff",color:currentRole===r?"#fff":C.textSecondary}}>{r==="analyst"?"Analist":r==="manager"?"Yönetici":"Admin"}</button>)}</div>
+            <div style={{display:"flex",gap:4,background:"#F1F5F9",borderRadius:8,padding:3}}>{["analyst","manager","admin"].map(r=><button key={r} onClick={()=>onRoleChange&&onRoleChange(r)} style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:500,background:currentRole===r?C.primary:"#fff",color:currentRole===r?"#fff":C.textSecondary}}>{r==="analyst"?"Analist":r==="manager"?"Yönetici":"Admin"}</button>)}</div>
             <button style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:6,border:`1px solid ${C.border}`,background:"#fff",cursor:"pointer",fontSize:12,color:C.textSecondary}}><Icons.Globe/> TR</button>
           </div>
         </header>
 
-        <main style={{flex:1,overflow:"auto",padding:24}} onClick={()=>{setShowNotifications(false);setDomainMenuOpen(false);setShowUserMenu(false);}}>
+        <main style={{flex:1,overflow:"auto",padding:24}} >
           {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:9999,padding:"12px 20px",borderRadius:10,background:toast.type==="success"?"#059669":"#3B82F6",color:"#fff",fontSize:13,fontWeight:500,boxShadow:"0 6px 20px rgba(0,0,0,0.15)",display:"flex",alignItems:"center",gap:8,animation:"slideIn 0.3s ease"}}>{toast.type==="success"?<Icons.Check/>:<Icons.Mail/>} {toast.msg}</div>}
 
           {/* ══════ DOWNLOAD FORMAT POPUP ══════ */}

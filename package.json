@@ -1,0 +1,18 @@
+{
+  "name": "scm-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names API,Vite --prefix-colors blue,green \"node scm-api/server.js\" \"npx --prefix scm-app vite --config scm-app/vite.config.js --root scm-app\"",
+    "build": "cd scm-api && npm install && cd ../scm-app && npm install && npm run build",
+    "start": "node scm-api/server.js",
+    "seed": "cd scm-api && node db/seed/seed.js",
+    "install:all": "cd scm-api && npm install && cd ../scm-app && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "docx": "^9.6.1"
+  }
+}

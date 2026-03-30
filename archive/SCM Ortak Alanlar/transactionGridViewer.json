@@ -1,0 +1,202 @@
+Transaction Grids:
+
+      {
+        "post": "/alertsTransaction/transactionGridDefinitionConfig",
+        "contentType": "application/vnd.sas.triage.transaction.grid.definition.config+json",
+        "acceptType": "application/json",
+        "body": [
+          {
+            "ID": "debit_card_transaction_grid",
+            "defaultDisplayName": "Debit Card Transactions",
+            "displayNameLocalizationKey": "alert.transaction.grids.labels.debit_card_transaction_grid.msg",
+            "optLockVersion": -1,
+            "transactionTypeIds": [{"id": "virtual_debit_card_txn_type"},{"id": "in_person_debit_card_txn_type"}],
+            "transactionFieldConfigs": [
+              {
+                "ID": "fraud_score",
+                "defaultDisplayName": "Fraud Score",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.debit_card_transaction_grid.fraud_score.id",
+                "displayOrderVal": 0,
+                "textAlignment": "rightAligned",
+                "isSortable": true,
+                "isResizable": true,
+                "variablePath": "message.debitVariables.fraudScore",
+                "dataType": "number",
+                "defaultSortDirection": "desc"
+              },
+              {
+                "ID": "transaction_amount",
+                "defaultDisplayName": "Transaction Amount",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.debit_card_transaction_grid.transaction_amount.id",
+                "displayOrderVal": 1,
+                "textAlignment": "rightAligned",
+                "isSortable": true,
+                "isResizable": true,
+                "variablePath": "message.cardfinancial.amount",
+                "dataType": "decimalNumber",
+                "decimalNumberPrecision": 2
+              },
+              {
+                "ID": "customer_first_name",
+                "defaultDisplayName": "First Name",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.debit_card_transaction_grid.customer_first_name.id",
+                "displayOrderVal": 2,
+                "textAlignment": "rightAligned",
+                "isSortable": false,
+                "isResizable": true,
+                "variablePath": "message.customer.name",
+                "dataType": "string"
+              },
+              {
+                "ID": "customer_last_name",
+                "defaultDisplayName": "Last Name",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.debit_card_transaction_grid.customer_last_name.id",
+                "displayOrderVal": 3,
+                "textAlignment": "rightAligned",
+                "isSortable": false,
+                "isResizable": true,
+                "variablePath": "message.customer.surname",
+                "dataType": "string"
+              },
+              {
+                "ID": "debit_account_number",
+                "defaultDisplayName": "Account Number",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.debit_card_transaction_grid.debit_account_number.id",
+                "displayOrderVal": 4,
+                "textAlignment": "rightAligned",
+                "isSortable": false,
+                "isResizable": true,
+                "variablePath": "message.debitaccount.number",
+                "dataType": "string"
+              }
+            ]
+          },
+          {
+            "ID": "check_transaction_grid",
+            "defaultDisplayName": "Check Transactions",
+            "displayNameLocalizationKey": "alert.transaction.grids.labels.check_transaction_grid.msg",
+            "optLockVersion": -1,
+            "transactionTypeIds": [{"id": "virtual_check_deposit_txn_type"}, {"id": "in_person_check_deposit_txn_type"}],
+            "transactionFieldConfigs": [
+              {
+                "ID": "fraud_score_2",
+                "defaultDisplayName": "Fraud Score",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.check_transaction_grid.fraud_score_2.id",
+                "displayOrderVal": 0,
+                "textAlignment": "rightAligned",
+                "isSortable": true,
+                "isResizable": true,
+                "variablePath": "message.debitVariables.fraudScore",
+                "dataType": "number",
+                "defaultSortDirection": "desc"
+              },
+              {
+                "ID": "check_amount",
+                "defaultDisplayName": "Check Amount",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.check_transaction_grid.check_amount.id",
+                "displayOrderVal": 1,
+                "textAlignment": "rightAligned",
+                "isSortable": true,
+                "isResizable": true,
+                "variablePath": "message.check.checkAmount",
+                "dataType": "decimalNumber",
+                "decimalNumberPrecision": 2
+              },
+              {
+                "ID": "customer_first_name_2",
+                "defaultDisplayName": "First Name",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.check_transaction_grid.customer_first_name_2.id",
+                "displayOrderVal": 2,
+                "textAlignment": "rightAligned",
+                "isSortable": false,
+                "isResizable": true,
+                "variablePath": "message.customer.name",
+                "dataType": "string"
+              },
+              {
+                "ID": "customer_last_name_2",
+                "defaultDisplayName": "Last Name",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.check_transaction_grid.customer_last_name_2.id",
+                "displayOrderVal": 3,
+                "textAlignment": "rightAligned",
+                "isSortable": false,
+                "isResizable": true,
+                "variablePath": "message.customer.surname",
+                "dataType": "string"
+              },
+              {
+                "ID": "debit_account_number_2",
+                "defaultDisplayName": "Account Number",
+                "displayNameLocalizationKey": "alerts.transaction.fields.label.check_transaction_grid.debit_account_number_2.id",
+                "displayOrderVal": 4,
+                "textAlignment": "rightAligned",
+                "isSortable": false,
+                "isResizable": true,
+                "variablePath": "message.debitaccount.number",
+                "dataType": "string"
+              }
+            ]
+          }
+        ]
+      }      
+	
+	
+
+    
+Transaction Viewer:
+
+
+    {
+      "post": "/alertsTransaction/transactionViewerConfig",
+      "contentType": "application/vnd.sas.triage.transaction.viewer.config+json",
+      "acceptType": "application/json",
+      "body": [
+        {
+          "id": "debit_account_transaction_viewer",
+          "optLockVersion": -1,
+          "indexableVariablePath": "message.debitaccount.number",
+          "alertFieldValuePath": "actionableEntityID",
+          "transactionGridDefinitionConfigs": [
+            {
+              "id": "check_transaction_grid",
+              "displayOrderVal": 1
+            },
+            {
+              "id": "debit_card_transaction_grid",
+              "displayOrderVal": 0
+            }
+          ],
+          "transactionMarkConfigs": [
+            { "id": "review-required" },
+            { "id": "review-in-progress" },
+            { "id": "reviewed-inconclusive" },
+            { "id": "declined" },
+            { "id": "authorized" }
+          ]
+        },
+        {
+          "id": "check_transaction_viewer",
+          "optLockVersion": -1,
+          "indexableVariablePath": "message.debitaccount.number",
+          "alertFieldValuePath": "actionableEntityID",
+          "transactionGridDefinitionConfigs": [
+            {
+              "id": "check_transaction_grid",
+              "displayOrderVal": 0
+            },
+            {
+              "id": "debit_card_transaction_grid",
+              "displayOrderVal": 1
+            }
+          ],
+          "transactionMarkConfigs": [
+            { "id": "review-required" },
+            { "id": "review-in-progress" },
+            { "id": "reviewed-inconclusive" },
+            { "id": "declined" },
+            { "id": "authorized" }
+          ]
+        }
+      ]
+    }    
+    

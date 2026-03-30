@@ -1,0 +1,25 @@
+/* ═══════════════════════════════════════════════════════════
+   SADE SCM — Reset
+═══════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+#root {
+  height: 100%;
+}
+
+button {
+  font-family: inherit;
+}
+
+input, select, textarea {
+  font-family: inherit;
+}

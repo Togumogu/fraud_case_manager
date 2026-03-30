@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCM Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #f4f6f9;
+    color: #1a1a2e;
+    display: flex;
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ─── SIDEBAR ─────────────────────────────────────────────── */
+  .sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: #fff;
+    border-right: 1px solid #e8ecf0;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.04);
+  }
+
+  .sidebar-logo {
+    padding: 18px 20px 16px;
+    border-bottom: 1px solid #e8ecf0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #1e40af, #3b82f6);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+  }
+
+  .logo-text { line-height: 1.2; }
+  .logo-text strong { font-size: 13px; font-weight: 700; color: #1e293b; display: block; }
+  .logo-text span { font-size: 10px; color: #94a3b8; }
+
+  .collapse-btn {
+    margin-left: auto;
+    width: 24px; height: 24px;
+    border: 1px solid #e8ecf0;
+    border-radius: 6px;
+    background: #f8fafc;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #64748b; font-size: 11px;
+  }
+
+  .sidebar-section {
+    padding: 12px 12px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+    text-transform: uppercase;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px 9px 16px;
+    margin: 1px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #475569;
+    font-size: 13.5px;
+    font-weight: 500;
+    transition: all 0.15s;
+    position: relative;
+    text-decoration: none;
+  }
+
+  .nav-item:hover { background: #f1f5f9; color: #1e293b; }
+
+  .nav-item.active {
+    background: #eff6ff;
+    color: #2563eb;
+    font-weight: 600;
+  }
+
+  .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .nav-badge {
+    margin-left: auto;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 1px 6px;
+    min-width: 18px;
+    text-align: center;
+  }
+
+  .nav-badge.orange { background: #f97316; }
+
+  .sidebar-divider {
+    height: 1px;
+    background: #e8ecf0;
+    margin: 8px 16px;
+  }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    padding: 12px;
+    border-top: 1px solid #e8ecf0;
+  }
+
+  .user-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .user-card:hover { background: #f1f5f9; }
+
+  .user-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2563eb, #60a5fa);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .user-avatar .online-dot {
+    width: 8px; height: 8px;
+    background: #22c55e;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    position: absolute;
+    bottom: -1px; right: -1px;
+  }
+
+  .user-info { flex: 1; min-width: 0; }
+  .user-info strong { font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-info span { font-size: 10.5px; color: #94a3b8; }
+
+  .sidebar-lang {
+    display: flex;
+    gap: 4px;
+    padding: 4px 8px;
+    justify-content: flex-end;
+  }
+  .lang-btn {
+    padding: 3px 7px;
+    border-radius: 5px;
+    font-size: 10px;
+    cursor: pointer;
+    color: #64748b;
+    border: 1px solid transparent;
+  }
+  .lang-btn.active { border-color: #cbd5e1; color: #1e293b; background: #f8fafc; }
+
+  /* ─── MAIN CONTENT ─────────────────────────────────────────── */
+  .main {
+    margin-left: 240px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── TOP BAR ──────────────────────────────────────────────── */
+  .topbar {
+    background: #fff;
+    border-bottom: 1px solid #e8ecf0;
+    padding: 0 28px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+
+  .topbar-title { flex: 1; }
+  .topbar-title h1 { font-size: 17px; font-weight: 700; color: #1e293b; }
+  .topbar-title p { font-size: 12px; color: #94a3b8; margin-top: 1px; }
+
+  .topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+  .btn-primary {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(37,99,235,0.3);
+  }
+  .btn-primary:hover { background: #1d4ed8; }
+
+  .topbar-icon-btn {
+    width: 38px; height: 38px;
+    border: 1px solid #e8ecf0;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    color: #475569;
+    position: relative;
+  }
+  .topbar-icon-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+
+  .icon-badge {
+    position: absolute;
+    top: -4px; right: -4px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    border-radius: 10px;
+    padding: 1px 4px;
+    border: 2px solid #fff;
+    min-width: 16px;
+    text-align: center;
+  }
+
+  .topbar-divider { width: 1px; height: 28px; background: #e8ecf0; }
+
+  .topbar-user {
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; padding: 4px 8px; border-radius: 8px;
+  }
+  .topbar-user:hover { background: #f8fafc; }
+  .topbar-user span { font-size: 12.5px; font-weight: 600; color: #1e293b; }
+  .topbar-user small { display: block; font-size: 10.5px; color: #94a3b8; }
+
+  /* ─── PAGE CONTENT ─────────────────────────────────────────── */
+  .content { padding: 24px 28px; flex: 1; }
+
+  /* Greeting */
+  .greeting {
+    margin-bottom: 22px;
+  }
+  .greeting h2 { font-size: 20px; font-weight: 700; color: #1e293b; }
+  .greeting p { font-size: 13px; color: #64748b; margin-top: 3px; }
+
+  /* ─── SLA ALERT BANNER ─────────────────────────────────────── */
+  .alert-banner {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid #f97316;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  .alert-banner .banner-icon { font-size: 18px; }
+  .alert-banner .banner-text strong { font-size: 13px; color: #c2410c; }
+  .alert-banner .banner-text span { font-size: 12px; color: #9a3412; display: block; margin-top: 1px; }
+  .alert-banner .banner-link {
+    margin-left: auto;
+    font-size: 12px;
+    color: #ea580c;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  /* ─── KPI CARDS ─────────────────────────────────────────────── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+
+  .kpi-card {
+    background: #fff;
+    border: 1px solid #e8ecf0;
+    border-radius: 12px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: box-shadow 0.15s, transform 0.15s;
+  }
+  .kpi-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .kpi-card.blue::before { background: #2563eb; }
+  .kpi-card.green::before { background: #22c55e; }
+  .kpi-card.orange::before { background: #f97316; }
+  .kpi-card.purple::before { background: #8b5cf6; }
+  .kpi-card.red::before { background: #ef4444; }
+
+  .kpi-label { font-size: 11.5px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .kpi-value { font-size: 28px; font-weight: 800; color: #1e293b; margin-top: 6px; line-height: 1; }
+  .kpi-sub { font-size: 11px; color: #94a3b8; margin-top: 5px; }
+  .kpi-icon { position: absolute; top: 16px; right: 16px; font-size: 22px; opacity: 0.15; }
+
+  .kpi-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 6px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .kpi-trend.up { color: #16a34a; background: #f0fdf4; }
+  .kpi-trend.down { color: #dc2626; background: #fef2f2; }
+
+  /* ─── WIDGET GRID ────────────────────────────────────────────── */
+  .widget-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .widget {
+    background: #fff;
+    border: 1px solid #e8ecf0;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .widget-header {
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .widget-header h3 { font-size: 13px; font-weight: 700; color: #1e293b; flex: 1; }
+  .widget-header .w-icon { font-size: 15px; }
+  .widget-header .w-link { font-size: 11.5px; color: #2563eb; cursor: pointer; font-weight: 600; }
+  .widget-body { padding: 14px 18px; }
+
+  /* Alarm queue widget */
+  .alarm-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid #f8fafc;
+    cursor: pointer;
+  }
+  .alarm-item:last-child { border-bottom: none; }
+  .alarm-item:hover { opacity: 0.8; }
+
+  .alarm-score {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; color: #fff;
+    flex-shrink: 0;
+  }
+  .score-critical { background: #dc2626; }
+  .score-high { background: #ea580c; }
+  .score-medium { background: #d97706; }
+
+  .alarm-info { flex: 1; min-width: 0; }
+  .alarm-info strong { font-size: 12.5px; color: #1e293b; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .alarm-info span { font-size: 11px; color: #94a3b8; }
+
+  .alarm-badge {
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-payment { background: #eff6ff; color: #1d4ed8; }
+  .badge-app { background: #f0fdf4; color: #16a34a; }
+  .badge-internal { background: #faf5ff; color: #7c3aed; }
+  .badge-card { background: #fff7ed; color: #c2410c; }
+
+  /* My cases widget */
+  .case-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid #f8fafc;
+    cursor: pointer;
+  }
+  .case-row:last-child { border-bottom: none; }
+  .case-row:hover { opacity: 0.8; }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-open { background: #3b82f6; }
+  .dot-pending { background: #f97316; }
+  .dot-review { background: #8b5cf6; }
+
+  .case-info { flex: 1; min-width: 0; }
+  .case-info strong { font-size: 12.5px; color: #1e293b; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .case-info span { font-size: 11px; color: #94a3b8; }
+
+  .case-amount { font-size: 12px; font-weight: 700; color: #1e293b; white-space: nowrap; }
+
+  /* SLA widget */
+  .sla-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f8fafc;
+  }
+  .sla-row:last-child { border-bottom: none; }
+
+  .sla-info { flex: 1; min-width: 0; }
+  .sla-info strong { font-size: 12px; color: #1e293b; display: block; }
+  .sla-info span { font-size: 11px; color: #94a3b8; }
+
+  .sla-bar-wrap { flex: 1; }
+  .sla-bar-bg {
+    height: 6px;
+    border-radius: 3px;
+    background: #f1f5f9;
+    overflow: hidden;
+  }
+  .sla-bar {
+    height: 100%;
+    border-radius: 3px;
+  }
+  .sla-bar.ok { background: #22c55e; }
+  .sla-bar.warn { background: #f97316; }
+  .sla-bar.breach { background: #ef4444; }
+
+  .sla-pct { font-size: 11px; font-weight: 700; width: 32px; text-align: right; }
+  .sla-pct.ok { color: #16a34a; }
+  .sla-pct.warn { color: #ea580c; }
+  .sla-pct.breach { color: #dc2626; }
+
+  /* ─── BOTTOM GRID ─────────────────────────────────────────────── */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+  }
+
+  /* Recent activity */
+  .activity-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid #f8fafc;
+  }
+  .activity-item:last-child { border-bottom: none; }
+
+  .activity-dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .act-create { background: #eff6ff; }
+  .act-close { background: #f0fdf4; }
+  .act-assign { background: #faf5ff; }
+  .act-mark { background: #fff7ed; }
+  .act-approve { background: #f0fdf4; }
+  .act-comment { background: #f8fafc; }
+
+  .activity-text { flex: 1; }
+  .activity-text p { font-size: 12.5px; color: #374151; line-height: 1.4; }
+  .activity-text p strong { color: #1e293b; }
+  .activity-text small { font-size: 11px; color: #94a3b8; display: block; margin-top: 2px; }
+
+  /* Pending approvals widget */
+  .approval-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #f8fafc;
+  }
+  .approval-item:last-child { border-bottom: none; }
+
+  .approval-top {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+  }
+  .approval-type {
+    font-size: 11px; font-weight: 700;
+    padding: 2px 7px; border-radius: 4px;
+  }
+  .aptype-case { background: #eff6ff; color: #1d4ed8; }
+  .aptype-user { background: #faf5ff; color: #7c3aed; }
+
+  .approval-top strong { font-size: 12.5px; color: #1e293b; flex: 1; }
+  .approval-top time { font-size: 11px; color: #94a3b8; }
+
+  .approval-meta { font-size: 11.5px; color: #64748b; }
+
+  .approval-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .btn-approve {
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    border: none; cursor: pointer;
+    background: #dcfce7; color: #15803d;
+  }
+  .btn-reject {
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    border: none; cursor: pointer;
+    background: #fee2e2; color: #dc2626;
+  }
+
+  /* Domain donut chart (CSS-only) */
+  .domain-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 4px 0;
+  }
+  .domain-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .domain-color {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .domain-label { font-size: 12px; color: #475569; flex: 1; }
+  .domain-count { font-size: 13px; font-weight: 700; color: #1e293b; }
+  .domain-pct { font-size: 10.5px; color: #94a3b8; margin-left: 2px; }
+
+  .donut-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+
+  .donut {
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    background: conic-gradient(
+      #2563eb 0deg 126deg,
+      #22c55e 126deg 207deg,
+      #8b5cf6 207deg 270deg,
+      #f97316 270deg 360deg
+    );
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .donut::after {
+    content: '156';
+    width: 62px; height: 62px;
+    background: #fff;
+    border-radius: 50%;
+    position: absolute;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    font-weight: 800;
+    color: #1e293b;
+  }
+
+  /* Status badges */
+  .badge-open { background: #eff6ff; color: #2563eb; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; }
+  .badge-pending-c { background: #fff7ed; color: #ea580c; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; }
+  .badge-review { background: #faf5ff; color: #7c3aed; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; }
+
+  /* Tooltip hint */
+  .widget-hint {
+    font-size: 11px; color: #94a3b8;
+    padding: 8px 18px 14px;
+    font-style: italic;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+  /* Role badge on topbar */
+  .role-badge {
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 20px;
+    color: #94a3b8;
+    font-size: 12px;
+  }
+
+  .section-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+    text-transform: uppercase;
+    padding: 10px 18px 6px;
+    border-top: 1px solid #f1f5f9;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🛡️</div>
+    <div class="logo-text">
+      <strong>Case Management</strong>
+      <span>v.0.0.0</span>
+    </div>
+    <div class="collapse-btn">‹</div>
+  </div>
+
+  <div class="sidebar-section">Main</div>
+
+  <!-- Dashboard = Home (active) -->
+  <div class="nav-item active">
+    <span class="nav-icon">🏠</span>
+    Dashboard
+  </div>
+
+  <div class="nav-item">
+    <span class="nav-icon">🚨</span>
+    Alarmlar
+    <span class="nav-badge">12</span>
+  </div>
+
+  <div class="nav-item">
+    <span class="nav-icon">📋</span>
+    Cases
+  </div>
+
+  <div class="nav-item">
+    <span class="nav-icon">👤</span>
+    My Cases
+    <span class="nav-badge orange">5</span>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div class="sidebar-section">Yönetim</div>
+
+  <div class="nav-item">
+    <span class="nav-icon">⏳</span>
+    Onay Bekleyenler
+    <span class="nav-badge">3</span>
+  </div>
+
+  <div class="nav-item">
+    <span class="nav-icon">📊</span>
+    Reports
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div class="sidebar-section">Sistem</div>
+
+  <div class="nav-item">
+    <span class="nav-icon">⚙️</span>
+    Settings
+  </div>
+
+  <div class="sidebar-bottom">
+    <div class="sidebar-lang">
+      <span class="lang-btn active">TR</span>
+      <span class="lang-btn">EN</span>
+    </div>
+    <div class="user-card">
+      <div class="user-avatar">
+        ES
+        <span class="online-dot"></span>
+      </div>
+      <div class="user-info">
+        <strong>Erman Şeneren</strong>
+        <span>ID: 90001</span>
+      </div>
+      <span style="color:#94a3b8; font-size:12px;">›</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ════════════════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- ── TOP BAR ─────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar-title">
+      <h1>📊 Dashboard</h1>
+      <p>Genel durum özeti — Fraud soruşturma merkezi</p>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-primary">＋ Vaka Oluştur</button>
+
+      <div class="topbar-divider"></div>
+
+      <!-- Search icon -->
+      <div class="topbar-icon-btn" title="Hızlı Arama">🔍</div>
+
+      <!-- SLA warning icon -->
+      <div class="topbar-icon-btn" title="SLA İhlalleri" style="border-color:#fed7aa;">
+        ⚠️
+        <span class="icon-badge" style="background:#f97316;">2</span>
+      </div>
+
+      <!-- Notifications bell -->
+      <div class="topbar-icon-btn" title="Bildirimler">
+        🔔
+        <span class="icon-badge">7</span>
+      </div>
+
+      <div class="topbar-divider"></div>
+
+      <!-- User chip -->
+      <div class="topbar-user">
+        <div class="user-avatar" style="width:32px;height:32px;font-size:12px;">ES</div>
+        <div>
+          <span>Erman Şeneren</span>
+          <small>Fraud Analist</small>
+        </div>
+        <span class="role-badge" style="margin-left:6px;">Analist</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── PAGE CONTENT ────────────────────────────────────────── -->
+  <div class="content">
+
+    <!-- Greeting -->
+    <div class="greeting">
+      <h2>Günaydın, Erman 👋</h2>
+      <p>18 Şubat 2026, Çarşamba — Son giriş: Bugün 08:42</p>
+    </div>
+
+    <!-- SLA Alert Banner -->
+    <div class="alert-banner">
+      <span class="banner-icon">⚠️</span>
+      <div class="banner-text">
+        <strong>2 vakada SLA süresi aşıldı!</strong>
+        <span>90003 — Yüksek Hacimli İşlem Atağı (54 saat aşım) &nbsp;·&nbsp; 90007 — Kart Klonlama Şüphesi (12 saat aşım)</span>
+      </div>
+      <span class="banner-link">Vakaları Gör →</span>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card blue">
+        <div class="kpi-icon">📦</div>
+        <div class="kpi-label">Total Cases</div>
+        <div class="kpi-value">156</div>
+        <div class="kpi-sub">Tüm vakalar</div>
+        <div class="kpi-trend up">↑ 4 bu hafta</div>
+      </div>
+
+      <div class="kpi-card orange">
+        <div class="kpi-icon">🔓</div>
+        <div class="kpi-label">Open Cases</div>
+        <div class="kpi-value">23</div>
+        <div class="kpi-sub">Aktif soruşturma</div>
+        <div class="kpi-trend up">↑ 2 yeni</div>
+      </div>
+
+      <div class="kpi-card green">
+        <div class="kpi-icon">✅</div>
+        <div class="kpi-label">Closed Cases</div>
+        <div class="kpi-value">133</div>
+        <div class="kpi-sub">Kapatılan vakalar</div>
+        <div class="kpi-trend up">↑ 8 bu ay</div>
+      </div>
+
+      <div class="kpi-card purple">
+        <div class="kpi-icon">👤</div>
+        <div class="kpi-label">My Cases</div>
+        <div class="kpi-value">5</div>
+        <div class="kpi-sub">Bana atananlar</div>
+        <div class="kpi-trend down">↓ 1 pending</div>
+      </div>
+
+      <div class="kpi-card red">
+        <div class="kpi-icon">🚨</div>
+        <div class="kpi-label">Bekleyen Alarmlar</div>
+        <div class="kpi-value">12</div>
+        <div class="kpi-sub">Vakasız alarmlar</div>
+        <div class="kpi-trend up">↑ 3 yeni</div>
+      </div>
+    </div>
+
+    <!-- Widget Row 1 -->
+    <div class="widget-grid">
+
+      <!-- Alarm Queue -->
+      <div class="widget">
+        <div class="widget-header">
+          <span class="w-icon">🚨</span>
+          <h3>Kritik Alarmlar</h3>
+          <span style="font-size:11px;color:#94a3b8;">Yüksek öncelikli · FDM'den</span>
+          <span class="w-link">Tümünü Gör →</span>
+        </div>
+        <div class="widget-body">
+          <div class="alarm-item">
+            <div class="alarm-score score-critical">98</div>
+            <div class="alarm-info">
+              <strong>Yüksek Hacimli POS İşlemleri</strong>
+              <span>Entity: Card · C8821 · 14:30</span>
+            </div>
+            <span class="alarm-badge badge-payment">Payment</span>
+          </div>
+          <div class="alarm-item">
+            <div class="alarm-score score-critical">95</div>
+            <div class="alarm-info">
+              <strong>Aynı Device'dan Çoklu Başvuru</strong>
+              <span>Entity: Device · D4490 · 13:15</span>
+            </div>
+            <span class="alarm-badge badge-app">App Fraud</span>
+          </div>
+          <div class="alarm-item">
+            <div class="alarm-score score-high">87</div>
+            <div class="alarm-info">
+              <strong>Gece Yarısı Yüksek Tutar EFT</strong>
+              <span>Entity: Account · A2211 · 02:44</span>
+            </div>
+            <span class="alarm-badge badge-payment">Payment</span>
+          </div>
+          <div class="alarm-item">
+            <div class="alarm-score score-high">81</div>
+            <div class="alarm-info">
+              <strong>İç Kullanıcı Yetkisiz Sorgu</strong>
+              <span>Entity: User · U0093 · 09:10</span>
+            </div>
+            <span class="alarm-badge badge-internal">Internal</span>
+          </div>
+          <div class="alarm-item">
+            <div class="alarm-score score-medium">74</div>
+            <div class="alarm-info">
+              <strong>Kart Klonlama Şüphesi</strong>
+              <span>Entity: Card · C3301 · 11:52</span>
+            </div>
+            <span class="alarm-badge badge-card">Kart</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- My Cases -->
+      <div class="widget">
+        <div class="widget-header">
+          <span class="w-icon">👤</span>
+          <h3>Vakalarım</h3>
+          <span style="font-size:11px;color:#94a3b8;">Bana atanan</span>
+          <span class="w-link">My Cases →</span>
+        </div>
+        <div class="widget-body">
+          <div class="case-row">
+            <div class="status-dot dot-open"></div>
+            <div class="case-info">
+              <strong>#90001 · Çalıntı Kart Atağı</strong>
+              <span>Açık · 10 gündür devam</span>
+            </div>
+            <div>
+              <span class="badge-open">Open</span>
+              <div class="case-amount" style="margin-top:3px;text-align:right;">₺122.000</div>
+            </div>
+          </div>
+          <div class="case-row">
+            <div class="status-dot dot-pending"></div>
+            <div class="case-info">
+              <strong>#90002 · Zararlı Yazılım Fraud</strong>
+              <span>Onay bekliyor · 3 gün</span>
+            </div>
+            <div>
+              <span class="badge-pending-c">Pending</span>
+              <div class="case-amount" style="margin-top:3px;text-align:right;">₺87.000</div>
+            </div>
+          </div>
+          <div class="case-row">
+            <div class="status-dot dot-open"></div>
+            <div class="case-info">
+              <strong>#90005 · Hesap Ele Geçirme</strong>
+              <span>Açık · 2 gün</span>
+            </div>
+            <div>
+              <span class="badge-open">Open</span>
+              <div class="case-amount" style="margin-top:3px;text-align:right;">₺95.200</div>
+            </div>
+          </div>
+          <div class="case-row">
+            <div class="status-dot dot-review"></div>
+            <div class="case-info">
+              <strong>#90008 · Sahte Kimlik Başvurusu</strong>
+              <span>İncelemede · Manager onayı</span>
+            </div>
+            <div>
+              <span class="badge-review">Review</span>
+              <div class="case-amount" style="margin-top:3px;text-align:right;">₺44.000</div>
+            </div>
+          </div>
+          <div class="case-row">
+            <div class="status-dot dot-open"></div>
+            <div class="case-info">
+              <strong>#90011 · SIM Swap Şüphesi</strong>
+              <span>Açık · Bugün atandı</span>
+            </div>
+            <div>
+              <span class="badge-open">Open</span>
+              <div class="case-amount" style="margin-top:3px;text-align:right;">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Domain Breakdown -->
+      <div class="widget">
+        <div class="widget-header">
+          <span class="w-icon">🗂️</span>
+          <h3>Domain Dağılımı</h3>
+          <span class="w-link">Detay →</span>
+        </div>
+        <div class="widget-body">
+          <div class="donut-wrap">
+            <div class="donut"></div>
+          </div>
+          <div class="domain-grid">
+            <div class="domain-item">
+              <div class="domain-color" style="background:#2563eb;"></div>
+              <span class="domain-label">Payment Fraud</span>
+              <span class="domain-count">55</span>
+              <span class="domain-pct">35%</span>
+            </div>
+            <div class="domain-item">
+              <div class="domain-color" style="background:#22c55e;"></div>
+              <span class="domain-label">Card Fraud</span>
+              <span class="domain-count">45</span>
+              <span class="domain-pct">29%</span>
+            </div>
+            <div class="domain-item">
+              <div class="domain-color" style="background:#8b5cf6;"></div>
+              <span class="domain-label">App Fraud</span>
+              <span class="domain-count">35</span>
+              <span class="domain-pct">22%</span>
+            </div>
+            <div class="domain-item">
+              <div class="domain-color" style="background:#f97316;"></div>
+              <span class="domain-label">Internal Fraud</span>
+              <span class="domain-count">21</span>
+              <span class="domain-pct">14%</span>
+            </div>
+          </div>
+        </div>
+        <div class="section-label">SLA Uyumu · Bu Ay</div>
+        <div style="padding: 10px 18px 14px;">
+          <div class="sla-row">
+            <div class="sla-info"><strong>Payment</strong></div>
+            <div class="sla-bar-wrap">
+              <div class="sla-bar-bg"><div class="sla-bar ok" style="width:88%;"></div></div>
+            </div>
+            <span class="sla-pct ok">88%</span>
+          </div>
+          <div class="sla-row">
+            <div class="sla-info"><strong>Card</strong></div>
+            <div class="sla-bar-wrap">
+              <div class="sla-bar-bg"><div class="sla-bar warn" style="width:71%;"></div></div>
+            </div>
+            <span class="sla-pct warn">71%</span>
+          </div>
+          <div class="sla-row">
+            <div class="sla-info"><strong>App Fraud</strong></div>
+            <div class="sla-bar-wrap">
+              <div class="sla-bar-bg"><div class="sla-bar ok" style="width:95%;"></div></div>
+            </div>
+            <span class="sla-pct ok">95%</span>
+          </div>
+          <div class="sla-row">
+            <div class="sla-info"><strong>Internal</strong></div>
+            <div class="sla-bar-wrap">
+              <div class="sla-bar-bg"><div class="sla-bar breach" style="width:45%;"></div></div>
+            </div>
+            <span class="sla-pct breach">45%</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Widget Row 2 -->
+    <div class="bottom-grid">
+
+      <!-- Recent Activity Feed -->
+      <div class="widget">
+        <div class="widget-header">
+          <span class="w-icon">📜</span>
+          <h3>Son Aktiviteler</h3>
+          <span style="font-size:11px;color:#94a3b8;">Sistemdeki son hareketler</span>
+          <span class="w-link">Tümü →</span>
+        </div>
+        <div class="widget-body">
+          <div class="activity-item">
+            <div class="activity-dot act-approve">✅</div>
+            <div class="activity-text">
+              <p><strong>Mehmet Yıldız</strong> · #90002 vaka kapatma isteğini <strong>onayladı</strong></p>
+              <small>2 dk önce · Maker-Checker onay</small>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot act-create">📋</div>
+            <div class="activity-text">
+              <p><strong>Erman Şeneren</strong> · <strong>#90011 SIM Swap Şüphesi</strong> vakasını oluşturdu</p>
+              <small>18 dk önce · 2 alarm ilişkilendirildi</small>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot act-mark">🔖</div>
+            <div class="activity-text">
+              <p><strong>Volkan Özay</strong> · #90003'te <strong>3 işlemi fraud olarak işaretledi</strong> (₺48.000)</p>
+              <small>41 dk önce · tran_marking kaydedildi</small>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot act-assign">👤</div>
+            <div class="activity-text">
+              <p><strong>Manager</strong> · #90011 vakasını <strong>Erman Şeneren'e atadı</strong></p>
+              <small>1 saat önce · Unassigned → Atandı</small>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot act-comment">💬</div>
+            <div class="activity-text">
+              <p><strong>Tamer Sezgin</strong> · #90001'e yorum ekledi: <em>"Müşteri banka şubesine gitti..."</em></p>
+              <small>2 saat önce · Comments sekmesi</small>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot act-close">🔒</div>
+            <div class="activity-text">
+              <p><strong>Erman Şeneren</strong> · #90004 <strong>Sahte Kimlik Dolandırıcılığı</strong> vakasını kapattı</p>
+              <small>3 saat önce · Çözüme Kavuşturuldu</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pending Approvals (Manager widget) -->
+      <div class="widget">
+        <div class="widget-header">
+          <span class="w-icon">⏳</span>
+          <h3>Onay Bekleyenler</h3>
+          <span class="nav-badge" style="position:static;margin:0;">3</span>
+          <span class="w-link">Tümü →</span>
+        </div>
+        <div class="widget-body">
+          <div class="approval-item">
+            <div class="approval-top">
+              <span class="approval-type aptype-case">Vaka Kapatma</span>
+              <strong>#90002 · Zararlı Yazılım Fraud</strong>
+              <time>2 saat önce</time>
+            </div>
+            <div class="approval-meta">Talep eden: <strong>Erman Şeneren</strong> · Neden: Soruşturma Tamamlandı</div>
+            <div class="approval-actions">
+              <button class="btn-approve">✓ Onayla</button>
+              <button class="btn-reject">✕ Reddet</button>
+            </div>
+          </div>
+
+          <div class="approval-item">
+            <div class="approval-top">
+              <span class="approval-type aptype-user">Kullanıcı Oluşturma</span>
+              <strong>Ayşe Kaya · Fraud Analist</strong>
+              <time>5 saat önce</time>
+            </div>
+            <div class="approval-meta">Talep eden: <strong>Admin Berk</strong> · Domain: Payment Fraud</div>
+            <div class="approval-actions">
+              <button class="btn-approve">✓ Onayla</button>
+              <button class="btn-reject">✕ Reddet</button>
+            </div>
+          </div>
+
+          <div class="approval-item">
+            <div class="approval-top">
+              <span class="approval-type aptype-case">Vaka Kapatma</span>
+              <strong>#90007 · Kart Klonlama</strong>
+              <time>Dün</time>
+            </div>
+            <div class="approval-meta">Talep eden: <strong>Tamer Sezgin</strong> · Neden: Yanlış Alarm</div>
+            <div class="approval-actions">
+              <button class="btn-approve">✓ Onayla</button>
+              <button class="btn-reject">✕ Reddet</button>
+            </div>
+          </div>
+        </div>
+        <div class="widget-hint">⚠️ Maker-Checker aktif — kendi isteğinizi onaylayamazsınız.</div>
+      </div>
+
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+</body>
+</html>

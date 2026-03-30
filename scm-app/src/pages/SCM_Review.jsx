@@ -1,4 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import Sidebar from "../components/Sidebar";
+import Avatar from "../components/Avatar";
+import { reviews as reviewsApi, cases as casesApi, comments as commentsApi, transactions as txnsApi, history as historyApi, attachments as attachmentsApi, relations as relationsApi } from "../api/client";
 
 // ─── MOCK DATA ───────────────────────────────────────────────────────────────
 
@@ -27,92 +30,252 @@ const COMPLETED_REVIEWS = [
   { id: 5, caseId: "#2448", caseName: "Sahte Kimlik Başvurusu", sender: "Elif Yılmaz", sentDate: "03.03.2026 09:15", completedDate: "03.03.2026 14:00", note: "Belgelerin otantikliğini doğrulayınız.", status: "completed", domain: "Application Fraud", severity: "medium", responseComment: "Kimlik belgesinde hologram eksikliği tespit edildi. Sahte olma ihtimali yüksek." },
 ];
 
-// Case detail for review (read-only)
-const REVIEW_CASE_DATA = {
-  caseId: "#2470",
-  caseName: "Çoklu Kanal Fraud",
-  domain: "Credit Card Fraud",
-  status: "Open",
-  severity: "high",
-  createdDate: "05.03.2026",
-  assignee: "Burak Şen",
-  totalAmount: 187500.00,
-  currency: "TRY",
-  bankShare: 125000.00,
-  customerShare: 62500.00,
-  entities: {
-    customers: [
-      { id: "CUS-001234", name: "Ahmet Kara", phone: "+90 532 XXX XX 45", email: "a***@email.com" },
-      { id: "CUS-005678", name: "Fatma Kara", phone: "+90 505 XXX XX 12", email: "f***@email.com" },
+// Case detail data per review case — keyed by caseId
+const REVIEW_CASE_DATA_MAP = {
+  "#2470": {
+    caseId: "#2470",
+    caseName: "Çoklu Kanal Fraud",
+    domain: "Credit Card Fraud",
+    status: "Open",
+    severity: "high",
+    createdDate: "05.03.2026",
+    assignee: "Burak Şen",
+    totalAmount: 187500.00,
+    currency: "TRY",
+    bankShare: 125000.00,
+    customerShare: 62500.00,
+    entities: {
+      customers: [
+        { id: "CUS-001234", name: "Ahmet Kara", phone: "+90 532 XXX XX 45", email: "a***@email.com" },
+        { id: "CUS-005678", name: "Fatma Kara", phone: "+90 505 XXX XX 12", email: "f***@email.com" },
+      ],
+      debitCards: [
+        { cardNo: "**** **** **** 4523", cardType: "Visa", expiry: "09/2028", status: "Aktif" },
+        { cardNo: "**** **** **** 7891", cardType: "MasterCard", expiry: "03/2027", status: "Bloke" },
+      ],
+      creditCards: [
+        { cardNo: "**** **** **** 1234", cardType: "Visa", expiry: "12/2027", status: "Aktif" },
+        { cardNo: "**** **** **** 5678", cardType: "MasterCard", expiry: "06/2026", status: "Bloke" },
+      ],
+    },
+    transactions: [
+      { id: "TXN-001", date: "05.03.2026 14:22", type: "EFT", amount: 75000, currency: "TRY", channel: "Internet", status: "Şüpheli", score: 92 },
+      { id: "TXN-002", date: "05.03.2026 14:25", type: "Havale", amount: 50000, currency: "TRY", channel: "Mobil", status: "Şüpheli", score: 88 },
+      { id: "TXN-003", date: "05.03.2026 14:30", type: "POS", amount: 42500, currency: "TRY", channel: "Fiziksel", status: "Şüpheli", score: 78 },
+      { id: "TXN-004", date: "05.03.2026 15:10", type: "ATM", amount: 20000, currency: "TRY", channel: "ATM", status: "Şüpheli", score: 85 },
     ],
-    debitCards: [
-      { cardNo: "**** **** **** 4523", cardType: "Visa", expiry: "09/2028", status: "Aktif" },
-      { cardNo: "**** **** **** 7891", cardType: "MasterCard", expiry: "03/2027", status: "Bloke" },
+    comments: [
+      { id: 1, user: "Burak Şen", date: "05.03.2026 15:00", text: "Vaka oluşturuldu. Çoklu kanaldan şüpheli işlemler tespit edildi.", fromReview: false },
+      { id: 2, user: "Burak Şen", date: "06.03.2026 09:30", text: "Müşteri ile iletişime geçildi. Hesap geçici olarak donduruldu.", fromReview: false },
+      { id: 3, user: "Burak Şen", date: "07.03.2026 10:00", text: "ATM kamera görüntüleri talep edildi.", fromReview: false },
     ],
-    creditCards: [
-      { cardNo: "**** **** **** 1234", cardType: "Visa", expiry: "12/2027", status: "Aktif" },
-      { cardNo: "**** **** **** 5678", cardType: "MasterCard", expiry: "06/2026", status: "Bloke" },
+    attachments: [
+      { id: 1, name: "ATM_Kamera_Goruntuleri.pdf", size: "4.2 MB", uploader: "Burak Şen", date: "06.03.2026 15:35" },
+      { id: 2, name: "Musteri_Beyan_Formu.docx", size: "1.1 MB", uploader: "Burak Şen", date: "06.03.2026 16:10" },
+    ],
+    relatedCases: [
+      { id: "#2465", name: "Hesap Ele Geçirme", relation: "Kardeş Vaka", status: "Open", severity: "critical", domain: "Account Takeover", assignee: "Elif Yılmaz", createdDate: "04.03.2026", totalAmount: 95000, currency: "TRY", bankShare: 65000, customerShare: 30000,
+        entities: {
+          customers: [{ id: "CUS-001234", name: "Ahmet Kara", phone: "+90 532 XXX XX 45", email: "a***@email.com" }],
+          debitCards: [{ cardNo: "**** **** **** 4523", cardType: "Visa", expiry: "09/2028", status: "Aktif" }],
+          creditCards: [],
+        },
+        transactions: [
+          { id: "TXN-101", date: "04.03.2026 09:15", type: "EFT", amount: 55000, currency: "TRY", channel: "Internet", status: "Şüpheli", score: 95 },
+          { id: "TXN-102", date: "04.03.2026 09:22", type: "Havale", amount: 40000, currency: "TRY", channel: "Mobil", status: "Şüpheli", score: 91 },
+        ],
+        comments: [
+          { id: 1, user: "Elif Yılmaz", date: "04.03.2026 10:00", text: "Hesap ele geçirme şüphesi. IP adresi yurt dışından.", fromReview: false },
+        ],
+        history: [
+          { id: 1, action: "Vaka oluşturuldu", user: "Elif Yılmaz", date: "04.03.2026 09:45", detail: "2 işlem ile vaka oluşturuldu." },
+        ],
+      },
+      { id: "#2458", name: "Sahte Kart Kullanımı", relation: "Üst-Alt Vaka", status: "Closed", severity: "medium", domain: "Credit Card Fraud", assignee: "Can Yıldız", createdDate: "02.03.2026", totalAmount: 32000, currency: "TRY", bankShare: 32000, customerShare: 0,
+        entities: {
+          customers: [{ id: "CUS-001234", name: "Ahmet Kara", phone: "+90 532 XXX XX 45", email: "a***@email.com" }],
+          debitCards: [],
+          creditCards: [{ cardNo: "**** **** **** 3456", cardType: "MasterCard", expiry: "01/2025", status: "Bloke" }],
+        },
+        transactions: [
+          { id: "TXN-201", date: "02.03.2026 18:05", type: "POS", amount: 18000, currency: "TRY", channel: "Fiziksel", status: "Fraud", score: 96 },
+          { id: "TXN-202", date: "02.03.2026 18:12", type: "POS", amount: 14000, currency: "TRY", channel: "Fiziksel", status: "Fraud", score: 94 },
+        ],
+        comments: [
+          { id: 1, user: "Can Yıldız", date: "02.03.2026 19:00", text: "Sahte kart kullanımı doğrulandı. Kart iptal edildi.", fromReview: false },
+        ],
+        history: [
+          { id: 1, action: "Vaka oluşturuldu", user: "Can Yıldız", date: "02.03.2026 18:30", detail: "2 işlem ile vaka oluşturuldu." },
+          { id: 2, action: "Vaka kapatıldı", user: "Can Yıldız", date: "03.03.2026 14:00", detail: "Fraud onaylandı, kart iptal edildi." },
+        ],
+      },
+    ],
+    history: [
+      { id: 1, action: "Vaka oluşturuldu", user: "Burak Şen", date: "05.03.2026 15:00", detail: "4 işlem ile vaka oluşturuldu." },
+      { id: 2, action: "Yorum eklendi", user: "Burak Şen", date: "06.03.2026 09:30", detail: "Müşteri ile iletişim notu." },
+      { id: 3, action: "Dosya yüklendi", user: "Burak Şen", date: "06.03.2026 15:35", detail: "ATM_Kamera_Goruntuleri.pdf yüklendi." },
+      { id: 4, action: "İnceleme talep edildi", user: "Burak Şen", date: "07.03.2026 09:00", detail: "Mehmet Öz'e inceleme gönderildi." },
     ],
   },
-  transactions: [
-    { id: "TXN-001", date: "05.03.2026 14:22", type: "EFT", amount: 75000, currency: "TRY", channel: "Internet", status: "Şüpheli", score: 92 },
-    { id: "TXN-002", date: "05.03.2026 14:25", type: "Havale", amount: 50000, currency: "TRY", channel: "Mobil", status: "Şüpheli", score: 88 },
-    { id: "TXN-003", date: "05.03.2026 14:30", type: "POS", amount: 42500, currency: "TRY", channel: "Fiziksel", status: "Şüpheli", score: 78 },
-    { id: "TXN-004", date: "05.03.2026 15:10", type: "ATM", amount: 20000, currency: "TRY", channel: "ATM", status: "Şüpheli", score: 85 },
-  ],
-  comments: [
-    { id: 1, user: "Burak Şen", date: "05.03.2026 15:00", text: "Vaka oluşturuldu. Çoklu kanaldan şüpheli işlemler tespit edildi.", fromReview: false },
-    { id: 2, user: "Burak Şen", date: "06.03.2026 09:30", text: "Müşteri ile iletişime geçildi. Hesap geçici olarak donduruldu.", fromReview: false },
-    { id: 3, user: "Burak Şen", date: "07.03.2026 10:00", text: "ATM kamera görüntüleri talep edildi.", fromReview: false },
-  ],
-  attachments: [
-    { id: 1, name: "ATM_Kamera_Goruntuleri.pdf", size: "4.2 MB", uploader: "Burak Şen", date: "06.03.2026 15:35" },
-    { id: 2, name: "Musteri_Beyan_Formu.docx", size: "1.1 MB", uploader: "Burak Şen", date: "06.03.2026 16:10" },
-  ],
-  relatedCases: [
-    { id: "#2465", name: "Hesap Ele Geçirme", relation: "Kardeş Vaka", status: "Open", severity: "critical", domain: "Account Takeover", assignee: "Elif Yılmaz", createdDate: "04.03.2026", totalAmount: 95000, currency: "TRY", bankShare: 65000, customerShare: 30000,
-      entities: {
-        customers: [{ id: "CUS-001234", name: "Ahmet Kara", phone: "+90 532 XXX XX 45", email: "a***@email.com" }],
-        debitCards: [{ cardNo: "**** **** **** 4523", cardType: "Visa", expiry: "09/2028", status: "Aktif" }],
-        creditCards: [],
+  "#2465": {
+    caseId: "#2465",
+    caseName: "Hesap Ele Geçirme",
+    domain: "Account Takeover",
+    status: "Open",
+    severity: "critical",
+    createdDate: "04.03.2026",
+    assignee: "Elif Yılmaz",
+    totalAmount: 95000.00,
+    currency: "TRY",
+    bankShare: 65000.00,
+    customerShare: 30000.00,
+    entities: {
+      customers: [
+        { id: "CUS-001234", name: "Ahmet Kara", phone: "+90 532 XXX XX 45", email: "a***@email.com" },
+      ],
+      debitCards: [
+        { cardNo: "**** **** **** 4523", cardType: "Visa", expiry: "09/2028", status: "Aktif" },
+      ],
+      creditCards: [],
+    },
+    transactions: [
+      { id: "TXN-101", date: "04.03.2026 09:15", type: "EFT", amount: 55000, currency: "TRY", channel: "Internet", status: "Şüpheli", score: 95 },
+      { id: "TXN-102", date: "04.03.2026 09:22", type: "Havale", amount: 40000, currency: "TRY", channel: "Mobil", status: "Şüpheli", score: 91 },
+    ],
+    comments: [
+      { id: 1, user: "Elif Yılmaz", date: "04.03.2026 10:00", text: "Hesap ele geçirme şüphesi. IP adresi yurt dışından.", fromReview: false },
+      { id: 2, user: "Elif Yılmaz", date: "04.03.2026 14:30", text: "Müşteri doğrulaması yapıldı, yetkisiz erişim teyit edildi.", fromReview: false },
+    ],
+    attachments: [
+      { id: 1, name: "IP_Analiz_Raporu.pdf", size: "1.8 MB", uploader: "Elif Yılmaz", date: "04.03.2026 11:20" },
+    ],
+    relatedCases: [
+      { id: "#2470", name: "Çoklu Kanal Fraud", relation: "Kardeş Vaka", status: "Open", severity: "high", domain: "Credit Card Fraud", assignee: "Burak Şen", createdDate: "05.03.2026", totalAmount: 187500, currency: "TRY", bankShare: 125000, customerShare: 62500,
+        entities: { customers: [{ id: "CUS-001234", name: "Ahmet Kara", phone: "+90 532 XXX XX 45", email: "a***@email.com" }], debitCards: [], creditCards: [] },
+        transactions: [{ id: "TXN-001", date: "05.03.2026 14:22", type: "EFT", amount: 75000, currency: "TRY", channel: "Internet", status: "Şüpheli", score: 92 }],
+        comments: [{ id: 1, user: "Burak Şen", date: "05.03.2026 15:00", text: "Çoklu kanaldan şüpheli işlemler.", fromReview: false }],
+        history: [{ id: 1, action: "Vaka oluşturuldu", user: "Burak Şen", date: "05.03.2026 15:00", detail: "4 işlem ile vaka oluşturuldu." }],
       },
-      transactions: [
-        { id: "TXN-101", date: "04.03.2026 09:15", type: "EFT", amount: 55000, currency: "TRY", channel: "Internet", status: "Şüpheli", score: 95 },
-        { id: "TXN-102", date: "04.03.2026 09:22", type: "Havale", amount: 40000, currency: "TRY", channel: "Mobil", status: "Şüpheli", score: 91 },
+    ],
+    history: [
+      { id: 1, action: "Vaka oluşturuldu", user: "Elif Yılmaz", date: "04.03.2026 09:45", detail: "2 işlem ile vaka oluşturuldu." },
+      { id: 2, action: "Yorum eklendi", user: "Elif Yılmaz", date: "04.03.2026 10:00", detail: "IP adresi yurt dışından tespiti notu eklendi." },
+      { id: 3, action: "İnceleme talep edildi", user: "Elif Yılmaz", date: "06.03.2026 14:30", detail: "Mehmet Öz'e inceleme gönderildi." },
+    ],
+  },
+  "#2459": {
+    caseId: "#2459",
+    caseName: "ATM Skimming Şüphesi",
+    domain: "Payment Fraud",
+    status: "Open",
+    severity: "medium",
+    createdDate: "03.03.2026",
+    assignee: "Can Yıldız",
+    totalAmount: 48000.00,
+    currency: "TRY",
+    bankShare: 36000.00,
+    customerShare: 12000.00,
+    entities: {
+      customers: [
+        { id: "CUS-009876", name: "Mehmet Demir", phone: "+90 541 XXX XX 78", email: "m***@email.com" },
       ],
-      comments: [
-        { id: 1, user: "Elif Yılmaz", date: "04.03.2026 10:00", text: "Hesap ele geçirme şüphesi. IP adresi yurt dışından.", fromReview: false },
+      debitCards: [
+        { cardNo: "**** **** **** 6789", cardType: "Visa", expiry: "11/2027", status: "Bloke" },
       ],
-      history: [
-        { id: 1, action: "Vaka oluşturuldu", user: "Elif Yılmaz", date: "04.03.2026 09:45", detail: "2 işlem ile vaka oluşturuldu." },
+      creditCards: [],
+    },
+    transactions: [
+      { id: "TXN-301", date: "03.03.2026 22:15", type: "ATM", amount: 15000, currency: "TRY", channel: "ATM", status: "Şüpheli", score: 89 },
+      { id: "TXN-302", date: "03.03.2026 22:18", type: "ATM", amount: 15000, currency: "TRY", channel: "ATM", status: "Şüpheli", score: 87 },
+      { id: "TXN-303", date: "03.03.2026 22:22", type: "ATM", amount: 18000, currency: "TRY", channel: "ATM", status: "Şüpheli", score: 91 },
+    ],
+    comments: [
+      { id: 1, user: "Can Yıldız", date: "03.03.2026 23:00", text: "Aynı ATM'den ardışık çekim tespit edildi. Skimming şüphesi.", fromReview: false },
+      { id: 2, user: "Can Yıldız", date: "04.03.2026 09:30", text: "ATM kamerası incelemeye alındı. Cihaz üzerinde ek aparatı olabilir.", fromReview: false },
+    ],
+    attachments: [
+      { id: 1, name: "ATM_Lokasyon_Raporu.pdf", size: "980 KB", uploader: "Can Yıldız", date: "04.03.2026 10:00" },
+    ],
+    relatedCases: [],
+    history: [
+      { id: 1, action: "Vaka oluşturuldu", user: "Can Yıldız", date: "03.03.2026 23:00", detail: "3 işlem ile vaka oluşturuldu." },
+      { id: 2, action: "Kart bloke edildi", user: "Can Yıldız", date: "03.03.2026 23:05", detail: "Müşteri kartı bloke edildi." },
+      { id: 3, action: "İnceleme talep edildi", user: "Burak Şen", date: "05.03.2026 16:00", detail: "Mehmet Öz'e inceleme gönderildi." },
+    ],
+  },
+  "#2455": {
+    caseId: "#2455",
+    caseName: "Online Bankacılık Fraud",
+    domain: "Account Takeover",
+    status: "Open",
+    severity: "high",
+    createdDate: "02.03.2026",
+    assignee: "Can Yıldız",
+    totalAmount: 120000.00,
+    currency: "TRY",
+    bankShare: 84000.00,
+    customerShare: 36000.00,
+    entities: {
+      customers: [
+        { id: "CUS-003456", name: "Ayşe Yılmaz", phone: "+90 555 XXX XX 34", email: "ay***@email.com" },
+      ],
+      debitCards: [],
+      creditCards: [
+        { cardNo: "**** **** **** 9012", cardType: "Visa", expiry: "05/2028", status: "Aktif" },
       ],
     },
-    { id: "#2458", name: "Sahte Kart Kullanımı", relation: "Üst-Alt Vaka", status: "Closed", severity: "medium", domain: "Credit Card Fraud", assignee: "Can Yıldız", createdDate: "02.03.2026", totalAmount: 32000, currency: "TRY", bankShare: 32000, customerShare: 0,
-      entities: {
-        customers: [{ id: "CUS-001234", name: "Ahmet Kara", phone: "+90 532 XXX XX 45", email: "a***@email.com" }],
-        debitCards: [],
-        creditCards: [{ cardNo: "**** **** **** 3456", cardType: "MasterCard", expiry: "01/2025", status: "Bloke" }],
-      },
-      transactions: [
-        { id: "TXN-201", date: "02.03.2026 18:05", type: "POS", amount: 18000, currency: "TRY", channel: "Fiziksel", status: "Fraud", score: 96 },
-        { id: "TXN-202", date: "02.03.2026 18:12", type: "POS", amount: 14000, currency: "TRY", channel: "Fiziksel", status: "Fraud", score: 94 },
+    transactions: [
+      { id: "TXN-401", date: "02.03.2026 03:15", type: "EFT", amount: 80000, currency: "TRY", channel: "Internet", status: "Şüpheli", score: 94 },
+      { id: "TXN-402", date: "02.03.2026 03:18", type: "Havale", amount: 40000, currency: "TRY", channel: "Internet", status: "Şüpheli", score: 90 },
+    ],
+    comments: [
+      { id: 1, user: "Can Yıldız", date: "02.03.2026 09:00", text: "Gece saatlerinde yüksek tutarlı transferler. IP farklı ülkeden.", fromReview: false },
+    ],
+    attachments: [],
+    relatedCases: [],
+    history: [
+      { id: 1, action: "Vaka oluşturuldu", user: "Can Yıldız", date: "02.03.2026 09:00", detail: "2 işlem ile vaka oluşturuldu." },
+      { id: 2, action: "İnceleme talep edildi", user: "Can Yıldız", date: "04.03.2026 11:00", detail: "Mehmet Öz'e inceleme gönderildi." },
+    ],
+  },
+  "#2448": {
+    caseId: "#2448",
+    caseName: "Sahte Kimlik Başvurusu",
+    domain: "Application Fraud",
+    status: "Open",
+    severity: "medium",
+    createdDate: "01.03.2026",
+    assignee: "Elif Yılmaz",
+    totalAmount: 250000.00,
+    currency: "TRY",
+    bankShare: 250000.00,
+    customerShare: 0,
+    entities: {
+      customers: [
+        { id: "CUS-007890", name: "Ali Koç", phone: "+90 530 XXX XX 90", email: "al***@email.com" },
       ],
-      comments: [
-        { id: 1, user: "Can Yıldız", date: "02.03.2026 19:00", text: "Sahte kart kullanımı doğrulandı. Kart iptal edildi.", fromReview: false },
-      ],
-      history: [
-        { id: 1, action: "Vaka oluşturuldu", user: "Can Yıldız", date: "02.03.2026 18:30", detail: "2 işlem ile vaka oluşturuldu." },
-        { id: 2, action: "Vaka kapatıldı", user: "Can Yıldız", date: "03.03.2026 14:00", detail: "Fraud onaylandı, kart iptal edildi." },
-      ],
+      debitCards: [],
+      creditCards: [],
     },
-  ],
-  history: [
-    { id: 1, action: "Vaka oluşturuldu", user: "Burak Şen", date: "05.03.2026 15:00", detail: "4 işlem ile vaka oluşturuldu." },
-    { id: 2, action: "Yorum eklendi", user: "Burak Şen", date: "06.03.2026 09:30", detail: "Müşteri ile iletişim notu." },
-    { id: 3, action: "Dosya yüklendi", user: "Burak Şen", date: "06.03.2026 15:35", detail: "ATM_Kamera_Goruntuleri.pdf yüklendi." },
-    { id: 4, action: "Review gönderildi", user: "Burak Şen", date: "07.03.2026 09:00", detail: "Mehmet Öz'e inceleme gönderildi." },
-  ],
+    transactions: [
+      { id: "TXN-501", date: "01.03.2026 10:30", type: "Kredi Başvurusu", amount: 250000, currency: "TRY", channel: "Şube", status: "Şüpheli", score: 82 },
+    ],
+    comments: [
+      { id: 1, user: "Elif Yılmaz", date: "01.03.2026 11:00", text: "Kimlik belgesi doğrulama sonucu şüpheli. Hologram kontrolü gerekiyor.", fromReview: false },
+    ],
+    attachments: [
+      { id: 1, name: "Kimlik_Fotokopi.pdf", size: "2.1 MB", uploader: "Elif Yılmaz", date: "01.03.2026 11:05" },
+    ],
+    relatedCases: [],
+    history: [
+      { id: 1, action: "Vaka oluşturuldu", user: "Elif Yılmaz", date: "01.03.2026 11:00", detail: "1 işlem ile vaka oluşturuldu." },
+      { id: 2, action: "İnceleme talep edildi", user: "Elif Yılmaz", date: "03.03.2026 09:15", detail: "Mehmet Öz'e inceleme gönderildi." },
+    ],
+  },
 };
+
+// Helper to get case data for a review (by caseId), with fallback
+const getReviewCaseData = (caseId) => REVIEW_CASE_DATA_MAP[caseId] || REVIEW_CASE_DATA_MAP["#2470"];
 
 // ─── STYLE CONSTANTS ─────────────────────────────────────────────────────────
 
@@ -273,6 +436,49 @@ function CaseDetailReadOnly({ caseData, isExternal, onComment, onComplete, comme
             </div>
           ))}
         </div>
+
+        {/* Fraud Distribution Bar (read-only) */}
+        {(() => {
+          const total = caseData.totalAmount;
+          const bank = caseData.bankShare;
+          const cust = caseData.customerShare;
+          const rem = Math.max(0, total - bank - cust);
+          const bankPct = total > 0 ? (bank / total) * 100 : 0;
+          const custPct = total > 0 ? (cust / total) * 100 : 0;
+          const remPct = Math.max(0, 100 - bankPct - custPct);
+          return (
+            <div style={{ marginTop: 16, padding: "14px 18px", background: "#FAFBFD", borderRadius: 10, border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 10 }}>Fraud Tutarı Dağılımı</div>
+              <div style={{ height: 10, borderRadius: 5, display: "flex", overflow: "hidden", marginBottom: 10, background: "#E2E8F0" }}>
+                {bankPct > 0 && <div style={{ width: `${bankPct}%`, background: "#1E40AF" }} />}
+                {custPct > 0 && <div style={{ width: `${custPct}%`, background: "#F59E0B" }} />}
+                {remPct > 0.5 && <div style={{ width: `${remPct}%`, background: "#CBD5E1" }} />}
+              </div>
+              <div style={{ display: "flex", gap: 20, fontSize: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: "#1E40AF" }} />
+                  <span style={{ color: C.textSecondary }}>Banka Payı</span>
+                  <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmt(bank)} {caseData.currency}</span>
+                  <span style={{ fontSize: 11, color: "#1E40AF", fontWeight: 600, opacity: 0.7 }}>(%{bankPct.toFixed(1)})</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: "#F59E0B" }} />
+                  <span style={{ color: C.textSecondary }}>Müşteri Payı</span>
+                  <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{fmt(cust)} {caseData.currency}</span>
+                  <span style={{ fontSize: 11, color: "#D97706", fontWeight: 600, opacity: 0.7 }}>(%{custPct.toFixed(1)})</span>
+                </div>
+                {rem > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 2, background: "#CBD5E1" }} />
+                    <span style={{ color: C.textSecondary }}>Belirlenmemiş</span>
+                    <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: C.warning }}>{fmt(rem)} {caseData.currency}</span>
+                    <span style={{ fontSize: 11, color: C.textSecondary, fontWeight: 600, opacity: 0.7 }}>(%{remPct.toFixed(1)})</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Tabs */}
@@ -454,9 +660,7 @@ function CaseDetailReadOnly({ caseData, isExternal, onComment, onComplete, comme
             <div style={{ marginBottom: 16 }}>
               {comments.map(c => (
                 <div key={c.id} style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 12 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: c.fromReview ? `${C.purple}14` : `${C.primaryLight}14`, display: "flex", alignItems: "center", justifyContent: "center", color: c.fromReview ? C.purple : C.primaryLight, fontWeight: 600, fontSize: 12, flexShrink: 0 }}>
-                    {c.user.split(" ").map(n => n[0]).join("")}
-                  </div>
+                  <Avatar name={c.user} size={32} style={{ background: c.fromReview ? `${C.purple}14` : `${C.primaryLight}14`, color: c.fromReview ? C.purple : C.primaryLight }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{c.user}</span>
@@ -698,9 +902,7 @@ function CaseDetailReadOnly({ caseData, isExternal, onComment, onComplete, comme
                   <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
                     {drawerCase.comments.map(c => (
                       <div key={c.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10 }}>
-                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${C.primaryLight}14`, display: "flex", alignItems: "center", justifyContent: "center", color: C.primaryLight, fontWeight: 600, fontSize: 10, flexShrink: 0 }}>
-                          {c.user.split(" ").map(n => n[0]).join("")}
-                        </div>
+                        <Avatar name={c.user} size={28} style={{ background: `${C.primaryLight}14`, color: C.primaryLight }} />
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                             <span style={{ fontSize: 12, fontWeight: 600 }}>{c.user}</span>
@@ -750,7 +952,8 @@ function ExternalReviewerFlow({ onBack }) {
   const [step, setStep] = useState("verify"); // verify → review → completed
   const [otpCode, setOtpCode] = useState("");
   const [verifyError, setVerifyError] = useState("");
-  const [comments, setComments] = useState([...REVIEW_CASE_DATA.comments]);
+  const externalCaseData = getReviewCaseData("#2470");
+  const [comments, setComments] = useState([...externalCaseData.comments]);
   const [newComment, setNewComment] = useState("");
   const [reviewCompleted, setReviewCompleted] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -798,7 +1001,6 @@ function ExternalReviewerFlow({ onBack }) {
   if (step === "verify") {
     return (
       <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #0F172A 0%, #1E3A8A 50%, #1E40AF 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', 'Segoe UI', -apple-system, sans-serif" }}>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
         <div style={{ width: 420, background: "#fff", borderRadius: 20, boxShadow: "0 25px 80px rgba(0,0,0,0.3)", overflow: "hidden" }}>
           {/* Header */}
           <div style={{ padding: "32px 32px 24px", textAlign: "center", borderBottom: `1px solid ${C.border}` }}>
@@ -862,7 +1064,6 @@ function ExternalReviewerFlow({ onBack }) {
   if (step === "completed") {
     return (
       <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #ECFDF5, #D1FAE5, #A7F3D0)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', 'Segoe UI', -apple-system, sans-serif" }}>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
         <div style={{ width: 440, background: "#fff", borderRadius: 20, boxShadow: "0 25px 60px rgba(0,0,0,0.1)", overflow: "hidden", textAlign: "center", padding: "48px 40px" }}>
           <div style={{ marginBottom: 20 }}><I.CheckCircle /></div>
           <h2 style={{ margin: "0 0 10px", fontSize: 24, fontWeight: 700, color: C.text }}>Teşekkürler!</h2>
@@ -874,7 +1075,7 @@ function ExternalReviewerFlow({ onBack }) {
           </p>
           <div style={{ padding: "14px 18px", background: "#F8FAFC", borderRadius: 10, border: `1px solid ${C.border}`, marginBottom: 24 }}>
             <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 4 }}>İncelenen vaka</div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>{REVIEW_CASE_DATA.caseId} — {REVIEW_CASE_DATA.caseName}</div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>{externalCaseData.caseId} — {externalCaseData.caseName}</div>
           </div>
           <button onClick={onBack} style={{ background: "none", border: "none", fontSize: 12, color: C.textSecondary, cursor: "pointer", textDecoration: "underline", fontFamily: "'DM Sans', sans-serif" }}>← Demo: Sistem İçi Görünüme Dön</button>
         </div>
@@ -903,7 +1104,7 @@ function ExternalReviewerFlow({ onBack }) {
             <span style={{ fontSize: 11, fontWeight: 600, color: "#92400E" }}>Oturum aktif</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${C.purple}14`, display: "flex", alignItems: "center", justifyContent: "center", color: C.purple, fontSize: 11, fontWeight: 600 }}>Dİ</div>
+            <Avatar name="Dış İncelemeci" size={28} style={{ background: `${C.purple}14`, color: C.purple }} />
             <span style={{ fontSize: 12, fontWeight: 500, color: C.text }}>Dış İncelemeci</span>
           </div>
         </div>
@@ -915,7 +1116,7 @@ function ExternalReviewerFlow({ onBack }) {
         <div style={{ background: "linear-gradient(135deg, #5B21B6, #7C3AED)", borderRadius: 14, padding: "20px 28px", marginBottom: 20, color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>İnceleme Talebi</div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{REVIEW_CASE_DATA.caseId} — {REVIEW_CASE_DATA.caseName}</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{externalCaseData.caseId} — {externalCaseData.caseName}</div>
             <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>Gönderen: Burak Şen · 07.03.2026 09:00</div>
           </div>
           {!reviewCompleted && (
@@ -936,7 +1137,7 @@ function ExternalReviewerFlow({ onBack }) {
 
         {/* Case Detail */}
         <CaseDetailReadOnly
-          caseData={REVIEW_CASE_DATA}
+          caseData={externalCaseData}
           isExternal={true}
           onComment={handleComment}
           onComplete={() => setShowConfirmModal(true)}
@@ -978,92 +1179,184 @@ function ExternalReviewerFlow({ onBack }) {
 
 // ─── INTERNAL REVIEW PAGE ────────────────────────────────────────────────────
 
-function InternalReviewPage({ currentRole, user, onViewExternal }) {
+function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, onNavigate, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead }) {
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedReview, setSelectedReview] = useState(null);
-  const [comments, setComments] = useState([...REVIEW_CASE_DATA.comments]);
+  const [reviewCaseData, setReviewCaseData] = useState(null);
+  const [caseLoading, setCaseLoading] = useState(false);
+  const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [reviewCompleted, setReviewCompleted] = useState(false);
   const [toast, setToast] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeNav, setActiveNav] = useState("review_inbox");
   const [selectedDomain, setSelectedDomain] = useState("payment");
-  const [domainMenuOpen, setDomainMenuOpen] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [activeSub, setActiveSub] = useState("review_sent");
+
+  const [pendingReviews, setPendingReviews] = useState([...PENDING_REVIEWS]);
+  const [completedReviews, setCompletedReviews] = useState([...COMPLETED_REVIEWS]);
+
+  useEffect(() => {
+    reviewsApi.listAll({ reviewer_name: user.name, status: 'pending' })
+      .then(rows => {
+        if (rows.length > 0) {
+          const fmt = (iso) => { if (!iso) return '—'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+          setPendingReviews(rows.map(r => ({ id: r.id, caseId: `#${r.case_id}`, caseName: r.case_name || `Vaka #${r.case_id}`, sender: r.requested_by, sentDate: fmt(r.requested_at), note: null, status: 'pending', severity: r.severity || 'medium', _caseId: r.case_id, _reviewId: r.id })));
+        }
+      }).catch(() => {});
+    reviewsApi.listAll({ reviewer_name: user.name, status: 'completed' })
+      .then(rows => {
+        if (rows.length > 0) {
+          const fmt = (iso) => { if (!iso) return '—'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+          setCompletedReviews(rows.map(r => ({ id: r.id, caseId: `#${r.case_id}`, caseName: r.case_name || `Vaka #${r.case_id}`, sender: r.requested_by, sentDate: fmt(r.requested_at), completedDate: fmt(r.completed_at), status: 'completed', severity: r.severity || 'medium', responseComment: r.comment || null })));
+        }
+      }).catch(() => {});
+  }, [user.name]);
 
   const showToast = (type, msg) => { setToast({ type, msg }); setTimeout(() => setToast(null), 3000); };
-  const isManager = currentRole === "manager" || currentRole === "admin";
+
+  // Fetch case detail from API when a review is selected
+  const loadCaseForReview = async (review) => {
+    const numericId = review._caseId || review.caseId?.replace('#', '');
+    if (!numericId) return;
+    setCaseLoading(true);
+    try {
+      const [caseRow, cmts, txnRows, hist, atts, rels] = await Promise.all([
+        casesApi.get(numericId).catch(() => null),
+        commentsApi.list(numericId).catch(() => []),
+        txnsApi.list(numericId).catch(() => []),
+        historyApi.list(numericId).catch(() => []),
+        attachmentsApi.list(numericId).catch(() => []),
+        relationsApi.list(numericId).catch(() => []),
+      ]);
+      if (!caseRow) {
+        // API case not found — fall back to mock map
+        const fallback = getReviewCaseData(review.caseId);
+        setReviewCaseData(fallback);
+        setComments([...fallback.comments]);
+        setCaseLoading(false);
+        return;
+      }
+      const fmt = (iso) => { if (!iso) return '—'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+      const fmtDate = (s) => { if (!s) return '—'; if (/^\d{2}\.\d{2}\.\d{4}/.test(s)) return s; const d = new Date(s); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`; };
+      const commentsData = (Array.isArray(cmts) ? cmts : cmts?.data || []).map(c => ({
+        id: c.id, user: c.user_name || c.user, date: fmt(c.created_at) || c.date, text: c.content || c.text, fromReview: !!c.from_review,
+      }));
+      const txnData = (Array.isArray(txnRows) ? txnRows : txnRows?.data || []).map(t => ({
+        id: t.id || t.fdm_txn_id, date: fmt(t.date || t.created_at) || '—', type: t.type || t.transaction_type || '—',
+        amount: t.amount || 0, currency: t.currency || caseRow.currency || 'TRY',
+        channel: t.channel || '—', status: t.fraud_status || t.status || '—', score: t.score || t.fraud_score || 0,
+      }));
+      const histData = (Array.isArray(hist) ? hist : hist?.data || []).map(h => ({
+        id: h.id, action: h.action, user: h.user_name || h.user, date: fmt(h.created_at) || h.date, detail: h.detail || '',
+      }));
+      const attData = (Array.isArray(atts) ? atts : atts?.data || []).map(a => ({
+        id: a.id, name: a.file_name || a.name, size: a.file_size || '—', uploader: a.uploaded_by || '—', date: fmt(a.created_at) || '—',
+      }));
+      const relData = (Array.isArray(rels) ? rels : rels?.data || []).map(r => ({
+        id: `#${r.related_case_id || r.id}`, name: r.related_case_name || r.name || `Vaka #${r.related_case_id}`,
+        relation: r.relationship_type || '—', status: r.status || 'Open', severity: r.severity || 'medium',
+        domain: r.domain || '—', assignee: r.owner || '—', createdDate: fmtDate(r.create_date),
+        totalAmount: r.total_amount || 0, currency: r.currency || 'TRY', bankShare: r.bank_share || 0, customerShare: r.customer_share || 0,
+        entities: { customers: [], debitCards: [], creditCards: [] }, transactions: [], comments: [],
+        history: [],
+      }));
+      const built = {
+        caseId: `#${caseRow.id}`,
+        caseName: caseRow.name,
+        domain: caseRow.domain_id || '—',
+        status: caseRow.status,
+        severity: caseRow.severity || 'medium',
+        createdDate: fmtDate(caseRow.create_date),
+        assignee: caseRow.owner || '—',
+        totalAmount: caseRow.total_amount || 0,
+        currency: caseRow.currency || 'TRY',
+        bankShare: caseRow.bank_share || 0,
+        customerShare: caseRow.customer_share || 0,
+        entities: { customers: [], debitCards: [], creditCards: [] },
+        transactions: txnData,
+        comments: commentsData,
+        attachments: attData,
+        relatedCases: relData,
+        history: histData,
+      };
+      setReviewCaseData(built);
+      setComments([...commentsData]);
+    } catch {
+      // Fallback to mock map on error
+      const fallback = getReviewCaseData(review.caseId);
+      setReviewCaseData(fallback);
+      setComments([...fallback.comments]);
+    }
+    setCaseLoading(false);
+  };
 
   const handleComment = () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || !selectedReview) return;
     const n = new Date();
-    setComments(p => [...p, { id: p.length + 1, user: user.name, date: `${String(n.getDate()).padStart(2, "0")}.${String(n.getMonth() + 1).padStart(2, "0")}.${n.getFullYear()} ${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`, text: newComment, fromReview: true }]);
+    const dateStr = `${String(n.getDate()).padStart(2, "0")}.${String(n.getMonth() + 1).padStart(2, "0")}.${n.getFullYear()} ${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
+    const commentText = newComment.trim();
+    setComments(p => [...p, { id: Date.now(), user: user.name, date: dateStr, text: commentText, fromReview: true }]);
     setNewComment("");
+    // Save to API
+    const numericId = selectedReview._caseId || selectedReview.caseId?.replace('#', '');
+    if (numericId) {
+      commentsApi.create(numericId, { user_name: user.name, content: commentText, from_review: true }).catch(() => {});
+    }
     showToast("success", "İnceleme yorumunuz eklendi.");
   };
 
   const handleComplete = () => {
     setShowConfirmModal(false);
-    setReviewCompleted(true);
-    showToast("success", "İnceleme başarıyla tamamlandı. Vaka sahibine bildirim gönderildi.");
+    const completed = { ...selectedReview, status: 'completed', completedDate: new Date().toLocaleString('tr-TR').slice(0, 16).replace(',', '') };
+    setPendingReviews(p => p.filter(r => r.id !== selectedReview.id));
+    setCompletedReviews(p => [completed, ...p]);
+    const numericId = selectedReview._caseId || selectedReview.caseId?.replace('#', '');
+    if (selectedReview._caseId && selectedReview._reviewId) {
+      const lastReviewComment = comments.filter(c => c.fromReview).pop();
+      reviewsApi.update(selectedReview._caseId, selectedReview._reviewId, { status: 'completed', comment: lastReviewComment?.text || null }).catch(() => {});
+    }
+    // Add history entry for review completion on the case
+    if (numericId) {
+      historyApi.create(numericId, {
+        user_name: user.name,
+        action: 'İnceleme tamamlandı',
+        action_type: 'review',
+        detail: `${user.name} tarafından inceleme sonuçlandırıldı.`,
+      }).catch(() => {});
+    }
+    showToast("success", "İnceleme tamamlandı.");
     setSelectedReview(null);
+    setReviewCaseData(null);
+    setComments([]);
   };
 
-  // Nav items
-  const navItems = [
-    { key: "dashboard", label: "Dashboard", sublabel: "Ana Sayfa", icon: <I.Dashboard /> },
-    { key: "case_creation", label: "Vaka Oluşturma", sublabel: "Case Creation", icon: <I.CaseCreate /> },
-    { key: "cases", label: "Vaka Listesi", sublabel: "Case List", icon: <I.Cases /> },
-    { key: "review_inbox", label: "Vakalarım", sublabel: "My Cases", icon: <I.MyCases /> },
-    { key: "txn_search", label: "İşlem Arama", sublabel: "Transaction Search", icon: <I.TransactionSearch /> },
-    { key: "reports", label: "Raporlar", sublabel: "Reports", icon: <I.Reports /> },
-    ...(currentRole === "admin" ? [{ key: "settings", label: "Ayarlar", sublabel: "Settings", icon: <I.Settings /> }] : []),
-  ];
-
-  const subItems = [
-    { key: "my_cases", label: "Vakalarım", icon: <I.MyCases />, badge: 14 },
-    { key: "review_sent", label: "İncelemem İçin Gönderilenler", icon: <I.Review />, badge: PENDING_REVIEWS.length },
-    { key: "pending_approvals", label: "Onay Bekleyenler", icon: <I.Check />, badge: 2 },
-    { key: "deleted_cases", label: "Silinmiş Vakalar", icon: <I.X />, badge: 0 },
-  ];
-
-  const allReviews = activeTab === "pending" ? PENDING_REVIEWS : COMPLETED_REVIEWS;
+  const allReviews = activeTab === "pending" ? pendingReviews : completedReviews;
 
   // ── CASE DETAIL VIEW (when a review is selected) ──
   if (selectedReview) {
     return (
-      <div style={{ display: "flex", height: "100vh", fontFamily: "'DM Sans', 'Segoe UI', -apple-system, sans-serif", background: C.bg, color: C.text, overflow: "hidden" }}>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+      <div className="scm-layout">
         <Toast toast={toast} onClose={() => setToast(null)} />
 
-        {/* Full layout with sidebar */}
-        <aside style={{ width: 260, background: C.sidebar, display: "flex", flexDirection: "column", flexShrink: 0 }}>
-          {/* Logo */}
-          <div style={{ padding: "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, minHeight: 72 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono', monospace" }}>S</div>
-            <div>
-              <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>SADE SCM</div>
-              <div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div>
-            </div>
-          </div>
-          <nav style={{ flex: 1, padding: "8px 10px", overflow: "auto" }}>
-            {navItems.map(item => (
-              <button key={item.key} onClick={() => { if (onNavigate) onNavigate(item.key); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 8, border: "none", cursor: "pointer", background: item.key === "review_inbox" ? C.sidebarActive : "transparent", color: item.key === "review_inbox" ? "#fff" : "#94A3B8", fontSize: 13, fontFamily: "'DM Sans', sans-serif", marginBottom: 2, textAlign: "left" }}>
-                {item.icon}
-                <div><div style={{ fontWeight: item.key === "review_inbox" ? 600 : 500 }}>{item.label}</div><div style={{ fontSize: 10.5, color: "#475569" }}>{item.sublabel}</div></div>
-              </button>
-            ))}
-          </nav>
-        </aside>
+        <Sidebar
+          activePage="reviews"
+          onNavigate={onNavigate}
+          user={USERS[currentRole]}
+          selectedDomain={selectedDomain}
+          onDomainChange={setSelectedDomain}
+          collapsed={sidebarCollapsed}
+          onCollapseToggle={() => setSidebarCollapsed(c => !c)}
+          myCasesCount={myCasesCount}
+          pendingApprovalsCount={pendingApprovalsCount}
+          reviewCount={reviewCount}
+          notifications={notifications}
+          onMarkAllRead={onMarkAllRead}
+          onMarkRead={onMarkRead}
+        />
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <header style={{ height: 64, background: "#fff", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button onClick={() => setSelectedReview(null)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", fontSize: 12, color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
+              <button onClick={() => { setSelectedReview(null); setReviewCaseData(null); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", fontSize: 12, color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
                 <I.ArrowLeft /> Geri
               </button>
               <div>
@@ -1072,11 +1365,9 @@ function InternalReviewPage({ currentRole, user, onViewExternal }) {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {!reviewCompleted && (
-                <button onClick={() => setShowConfirmModal(true)} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: C.purple, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'DM Sans', sans-serif" }}>
-                  <I.Check /> İncelemeyi Tamamla
-                </button>
-              )}
+              <button onClick={() => setShowConfirmModal(true)} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: C.purple, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'DM Sans', sans-serif" }}>
+                <I.Check /> İncelemeyi Tamamla
+              </button>
             </div>
           </header>
 
@@ -1090,16 +1381,20 @@ function InternalReviewPage({ currentRole, user, onViewExternal }) {
               </div>
             </div>
 
-            <CaseDetailReadOnly
-              caseData={REVIEW_CASE_DATA}
-              isExternal={false}
-              onComment={handleComment}
-              onComplete={() => setShowConfirmModal(true)}
-              comments={comments}
-              newComment={newComment}
-              setNewComment={setNewComment}
-              reviewCompleted={reviewCompleted}
-            />
+            {caseLoading || !reviewCaseData ? (
+              <div style={{ textAlign: "center", padding: 60, color: C.textSecondary, fontSize: 14 }}>Vaka verileri yükleniyor...</div>
+            ) : (
+              <CaseDetailReadOnly
+                caseData={reviewCaseData}
+                isExternal={false}
+                onComment={handleComment}
+                onComplete={() => setShowConfirmModal(true)}
+                comments={comments}
+                newComment={newComment}
+                setNewComment={setNewComment}
+                reviewCompleted={false}
+              />
+            )}
           </main>
         </div>
 
@@ -1127,139 +1422,40 @@ function InternalReviewPage({ currentRole, user, onViewExternal }) {
 
   // ── REVIEW LIST VIEW ──
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "'DM Sans', 'Segoe UI', -apple-system, sans-serif", background: C.bg, color: C.text, overflow: "hidden", ...(darkMode ? {filter:"invert(1) hue-rotate(180deg)"} : {}) }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <div className="scm-layout">
       <Toast toast={toast} onClose={() => setToast(null)} />
 
-      {/* Sidebar */}
-      <aside style={{
-        width: sidebarCollapsed ? 72 : 260, background: C.sidebar, display: "flex", flexDirection: "column",
-        transition: "width 0.3s cubic-bezier(0.4,0,0.2,1)", flexShrink: 0, zIndex: 100, position: "relative",
-      }}>
-        {/* Logo */}
-        <div style={{ padding: sidebarCollapsed ? "20px 16px" : "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, minHeight: 72 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>S</div>
-          {!sidebarCollapsed && <div><div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>SADE SCM</div><div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div></div>}
-        </div>
-
-        {/* Domain */}
-        <div style={{ padding: sidebarCollapsed ? "10px 8px" : "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          {!sidebarCollapsed && <div style={{ fontSize: 10, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, padding: "0 4px" }}>Domain Seçimi</div>}
-          <div style={{ position: "relative" }}>
-            <button onClick={() => setDomainMenuOpen(!domainMenuOpen)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: sidebarCollapsed ? "8px" : "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", cursor: "pointer", color: "#E2E8F0", justifyContent: sidebarCollapsed ? "center" : "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 14 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.icon}</span>
-                {!sidebarCollapsed && <span style={{ fontSize: 12.5, fontWeight: 500 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label}</span>}
-              </div>
-              {!sidebarCollapsed && <I.ChevronDown />}
-            </button>
-            {domainMenuOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: sidebarCollapsed ? 200 : "100%", background: "#1E293B", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 12px 40px rgba(0,0,0,0.4)", zIndex: 300, overflow: "hidden" }}>
-                {FRAUD_DOMAINS.map(d => (
-                  <div key={d.id} onClick={() => { setSelectedDomain(d.id); setDomainMenuOpen(false); }} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, background: selectedDomain === d.id ? "rgba(59,130,246,0.15)" : "transparent", color: "#E2E8F0", fontSize: 12.5 }}
-                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                    onMouseLeave={e => e.currentTarget.style.background = selectedDomain === d.id ? "rgba(59,130,246,0.15)" : "transparent"}>
-                    <span>{d.icon}</span><span>{d.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: "8px 10px", overflow: "auto" }}>
-          {navItems.map(item => {
-            const active = item.key === "review_inbox";
-            return (
-              <div key={item.key}>
-                <button style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: sidebarCollapsed ? 0 : 12,
-                  padding: sidebarCollapsed ? "10px" : "10px 14px", borderRadius: 8, border: "none",
-                  cursor: "pointer", background: active ? C.sidebarActive : "transparent",
-                  color: active ? "#fff" : "#94A3B8", fontSize: 13,
-                  fontFamily: "'DM Sans', sans-serif", marginBottom: 2, textAlign: "left",
-                  justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                  transition: "all .15s",
-                }}
-                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = C.sidebarHover; }}
-                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
-                >
-                  {item.icon}
-                  {!sidebarCollapsed && <div><div style={{ fontWeight: active ? 600 : 500, lineHeight: 1.3 }}>{item.label}</div><div style={{ fontSize: 10.5, color: "#475569", lineHeight: 1.2 }}>{item.sublabel}</div></div>}
-                </button>
-                {/* Sub-items for review_inbox */}
-                {active && !sidebarCollapsed && (
-                  <div style={{ paddingLeft: 16, marginBottom: 4 }}>
-                    {subItems.map(sub => (
-                      <button key={sub.key} onClick={() => setActiveSub(sub.key)} style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 10,
-                        padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer",
-                        background: activeSub === sub.key ? "rgba(59,130,246,0.15)" : "transparent",
-                        color: activeSub === sub.key ? "#60A5FA" : "#64748B",
-                        fontSize: 12, fontFamily: "'DM Sans', sans-serif", marginBottom: 1,
-                        justifyContent: "space-between", textAlign: "left",
-                        transition: "all .1s",
-                      }}
-                        onMouseEnter={e => { if (activeSub !== sub.key) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-                        onMouseLeave={e => { if (activeSub !== sub.key) e.currentTarget.style.background = "transparent"; }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ display: "flex" }}>{sub.icon}</span>
-                          <span style={{ fontWeight: activeSub === sub.key ? 600 : 400 }}>{sub.label}</span>
-                        </div>
-                        {sub.badge > 0 && <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: activeSub === sub.key ? "#3B82F6" : "rgba(255,255,255,0.1)", color: activeSub === sub.key ? "#fff" : "#94A3B8" }}>{sub.badge}</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-
-        {/* User */}
-        <div style={{ padding: sidebarCollapsed ? "16px 8px" : "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
-            <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg, #6366F1, #8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 600, fontSize: 13, flexShrink: 0, cursor: "pointer" }}>
-              {user.name.split(" ").map(n => n[0]).join("")}
-            </div>
-            {!sidebarCollapsed && <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ flex: 1, overflow: "hidden", cursor: "pointer" }}>
-              <div style={{ color: "#E2E8F0", fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
-              <div style={{ color: "#64748B", fontSize: 11 }}>{user.role === "analyst" ? "Fraud Analist" : user.role === "manager" ? "Yönetici" : "Admin"}</div>
-            </div>}
-            {/* Dark Mode Toggle */}
-            <button onClick={e => { e.stopPropagation(); setDarkMode(d => !d); }} title={darkMode ? "Açık Mod" : "Koyu Mod"} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8", flexShrink: 0 }}>
-              {darkMode ? <I.Sun /> : <I.Moon />}
-            </button>
-          </div>
-          {showUserMenu && (
-            <div onClick={e => e.stopPropagation()} style={{ position: "fixed", bottom: 72, left: sidebarCollapsed ? 80 : 268, background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 180, zIndex: 400, overflow: "hidden" }}>
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid #E2E8F0", fontSize: 12, color: "#64748B" }}>{user.name}</div>
-              <button onClick={() => setShowUserMenu(false)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 16px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#EF4444", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.background = "#FEF2F2"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}><I.LogOut /> Çıkış Yap</button>
-            </div>
-          )}
-        </div>
-
-        {/* Collapse */}
-        <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{
-          position: "absolute", top: 24, right: -14, width: 28, height: 28, borderRadius: "50%",
-          border: `2px solid ${C.border}`, background: "#fff", cursor: "pointer", display: "flex",
-          alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-          zIndex: 101, transform: sidebarCollapsed ? "rotate(0deg)" : "rotate(180deg)", transition: "transform .3s ease",
-        }}>
-          <I.ChevronRight />
-        </button>
-      </aside>
+      <Sidebar
+        activePage="reviews"
+        onNavigate={onNavigate}
+        user={USERS[currentRole]}
+        selectedDomain={selectedDomain}
+        onDomainChange={setSelectedDomain}
+        collapsed={sidebarCollapsed}
+        onCollapseToggle={() => setSidebarCollapsed(c => !c)}
+        myCasesCount={myCasesCount}
+        pendingApprovalsCount={pendingApprovalsCount}
+        reviewCount={reviewCount}
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        onMarkRead={onMarkRead}
+      />
 
       {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }} onClick={() => { setDomainMenuOpen(false); setShowNotifications(false); setShowUserMenu(false); }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header style={{ height: 64, background: "#fff", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", flexShrink: 0 }}>
           <div>
             <h1 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: C.text }}>İncelemem İçin Gönderilenler</h1>
             <p style={{ fontSize: 12, color: C.textSecondary, margin: 0 }}>Bana review için atanmış vakalar</p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
+              {["analyst", "manager", "admin"].map(role => (
+                <button key={role} onClick={() => onRoleChange && onRoleChange(role)} style={{ padding: "6px 14px", fontSize: 11.5, fontWeight: 600, border: "none", cursor: "pointer", background: currentRole === role ? C.primary : "#fff", color: currentRole === role ? "#fff" : C.textSecondary, transition: "all 0.15s ease" }}>
+                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : "Admin"}
+                </button>
+              ))}
+            </div>
             {/* Demo: View External */}
             <button onClick={onViewExternal} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${C.purple}40`, background: C.purpleBg, color: C.purple, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 6 }}>
               <I.Mail /> Demo: Dış İncelemeci Görünümü
@@ -1272,9 +1468,9 @@ function InternalReviewPage({ currentRole, user, onViewExternal }) {
           {/* Summary Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
             {[
-              { label: "Bekleyen İncelemeler", sublabel: "Pending Reviews", value: PENDING_REVIEWS.length, color: C.warning, bg: "#FFFBEB", icon: <I.Clock /> },
-              { label: "Tamamlanan İncelemeler", sublabel: "Completed Reviews", value: COMPLETED_REVIEWS.length, color: C.success, bg: "#ECFDF5", icon: <I.Check /> },
-              { label: "Toplam İnceleme", sublabel: "Total Reviews", value: PENDING_REVIEWS.length + COMPLETED_REVIEWS.length, color: C.purple, bg: C.purpleBg, icon: <I.Review /> },
+              { label: "Bekleyen İncelemeler", sublabel: "Pending Reviews", value: pendingReviews.length, color: C.warning, bg: "#FFFBEB", icon: <I.Clock /> },
+              { label: "Tamamlanan İncelemeler", sublabel: "Completed Reviews", value: completedReviews.length, color: C.success, bg: "#ECFDF5", icon: <I.Check /> },
+              { label: "Toplam İnceleme", sublabel: "Total Reviews", value: pendingReviews.length + completedReviews.length, color: C.purple, bg: C.purpleBg, icon: <I.Review /> },
             ].map((card, i) => (
               <div key={i} style={{ background: "#fff", borderRadius: 14, padding: "20px", border: `1px solid ${C.border}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -1290,8 +1486,8 @@ function InternalReviewPage({ currentRole, user, onViewExternal }) {
           {/* Tab Toggle */}
           <div style={{ display: "flex", gap: 0, marginBottom: 20, background: "#fff", borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden", width: "fit-content" }}>
             {[
-              { key: "pending", label: "Bekleyen", count: PENDING_REVIEWS.length },
-              { key: "completed", label: "Tamamlanan", count: COMPLETED_REVIEWS.length },
+              { key: "pending", label: "Bekleyen", count: pendingReviews.length },
+              { key: "completed", label: "Tamamlanan", count: completedReviews.length },
             ].map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
                 padding: "10px 24px", border: "none", cursor: "pointer",
@@ -1344,19 +1540,25 @@ function InternalReviewPage({ currentRole, user, onViewExternal }) {
                         {activeTab === "completed" ? r.completedDate : r.note}
                       </td>
                       <td style={{ padding: "14px 16px" }}>
-                        <button style={{
-                          padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
-                          background: activeTab === "pending" ? C.purple : "#F1F5F9",
-                          color: activeTab === "pending" ? "#fff" : C.text,
-                          fontFamily: "'DM Sans', sans-serif",
-                          display: "flex", alignItems: "center", gap: 4,
-                        }}>
-                          {activeTab === "pending" ? <><I.Review /> İncele</> : <><I.Review /> Görüntüle</>}
-                        </button>
+                        {activeTab === "pending" ? (
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedReview(r); loadCaseForReview(r); }}
+                            style={{ padding:"6px 16px", borderRadius:6, border:"none", background:C.purpleBg, color:C.purple, fontSize:12, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:4 }}>
+                            <I.Review /> İncele
+                          </button>
+                        ) : (
+                          <span style={{ fontSize:12, color:"#059669", fontWeight:600 }}>✓ Tamamlandı</span>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
+                {allReviews.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ padding: "32px 16px", textAlign: "center", color: "#64748B", fontSize: 13 }}>
+                      {activeTab === "pending" ? "İncelemeniz için bekleyen kayıt bulunmuyor." : "Tamamlanan inceleme bulunmuyor."}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1368,9 +1570,8 @@ function InternalReviewPage({ currentRole, user, onViewExternal }) {
 
 // ─── MAIN APP ────────────────────────────────────────────────────────────────
 
-export default function SCMReview({ onNavigate } = {}) {
-  const [viewMode, setViewMode] = useState("internal"); // "internal" | "external"
-  const [currentRole, setCurrentRole] = useState("analyst");
+export default function SCMReview({ onNavigate, currentRole = "analyst", onRoleChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead } = {}) {
+  const [viewMode, setViewMode] = useState("internal");
   const user = USERS[currentRole];
 
   if (viewMode === "external") {
@@ -1380,8 +1581,16 @@ export default function SCMReview({ onNavigate } = {}) {
   return (
     <InternalReviewPage
       currentRole={currentRole}
+      onRoleChange={onRoleChange}
       user={user}
       onViewExternal={() => setViewMode("external")}
+      onNavigate={onNavigate}
+      myCasesCount={myCasesCount}
+      pendingApprovalsCount={pendingApprovalsCount}
+      reviewCount={reviewCount}
+      notifications={notifications}
+      onMarkAllRead={onMarkAllRead}
+      onMarkRead={onMarkRead}
     />
   );
 }

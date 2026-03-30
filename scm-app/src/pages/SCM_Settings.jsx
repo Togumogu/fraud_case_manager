@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import Sidebar from "../components/Sidebar";
+import { settings as settingsApi } from "../api/client";
 
 // ═══════════════════════════════════════════════════════════════
 // MOCK DATA
@@ -25,6 +27,7 @@ const DOMAIN_SETTINGS = {
     reviewer_link_expiry_hours: 72,
     reviewer_inactivity_timeout_min: 30,
     reviewer_otp_enabled: true,
+    case_delete_enabled: true,
   },
   credit_card: {
     maker_checker_enabled: true,
@@ -34,6 +37,7 @@ const DOMAIN_SETTINGS = {
     reviewer_link_expiry_hours: 72,
     reviewer_inactivity_timeout_min: 30,
     reviewer_otp_enabled: true,
+    case_delete_enabled: true,
   },
   application: {
     maker_checker_enabled: false,
@@ -43,6 +47,7 @@ const DOMAIN_SETTINGS = {
     reviewer_link_expiry_hours: 48,
     reviewer_inactivity_timeout_min: 20,
     reviewer_otp_enabled: true,
+    case_delete_enabled: true,
   },
   account_takeover: {
     maker_checker_enabled: true,
@@ -52,6 +57,7 @@ const DOMAIN_SETTINGS = {
     reviewer_link_expiry_hours: 72,
     reviewer_inactivity_timeout_min: 30,
     reviewer_otp_enabled: true,
+    case_delete_enabled: true,
   },
   internal: {
     maker_checker_enabled: true,
@@ -61,6 +67,7 @@ const DOMAIN_SETTINGS = {
     reviewer_link_expiry_hours: 96,
     reviewer_inactivity_timeout_min: 15,
     reviewer_otp_enabled: true,
+    case_delete_enabled: true,
   },
 };
 
@@ -201,6 +208,7 @@ const Icons = {
   Moon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
   Sun: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
   LogOut: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  Trash: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -273,17 +281,11 @@ const Toggle = ({ checked, onChange, disabled }) => (
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function SCMSettings({ onNavigate } = {}) {
-  const currentUser = USERS.admin;
-  const currentRole = "admin";
+export default function SCMSettings({ onNavigate, currentRole = "analyst", onRoleChange, notifications = [], onMarkAllRead, onMarkRead } = {}) {
 
   // Sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState("payment");
-  const [domainMenuOpen, setDomainMenuOpen] = useState(false);
-  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Settings state - initialized from domain
   const [settings, setSettings] = useState({ ...DOMAIN_SETTINGS.payment });
@@ -303,12 +305,24 @@ export default function SCMSettings({ onNavigate } = {}) {
   const [expandedCategories, setExpandedCategories] = useState(PERMISSION_CATEGORIES.map(c => c.key));
   const [newCloseReason, setNewCloseReason] = useState("");
 
-  // Update settings when domain changes
+  // Update settings when domain changes — try API first, fall back to mock
   useEffect(() => {
-    const domainData = DOMAIN_SETTINGS[selectedDomain];
-    setSettings({ ...domainData });
     setHasChanges(false);
     setNewCloseReason("");
+    settingsApi.getDomain(selectedDomain).then(data => {
+      setSettings({
+        maker_checker_enabled: !!data.maker_checker_enabled,
+        notification_enabled: !!data.notification_enabled,
+        default_currency: data.default_currency,
+        close_reasons: Array.isArray(data.close_reasons) ? data.close_reasons : JSON.parse(data.close_reasons || '[]'),
+        reviewer_link_expiry_hours: data.reviewer_link_expiry_hours,
+        reviewer_inactivity_timeout_min: data.reviewer_inactivity_timeout_min,
+        reviewer_otp_enabled: !!data.reviewer_otp_enabled,
+        case_delete_enabled: data.case_delete_enabled !== undefined ? !!data.case_delete_enabled : true,
+      });
+    }).catch(() => {
+      setSettings({ ...DOMAIN_SETTINGS[selectedDomain] });
+    });
   }, [selectedDomain]);
 
   const showToast = (type, message) => setToast({ type, message });
@@ -338,14 +352,28 @@ export default function SCMSettings({ onNavigate } = {}) {
       onConfirm: () => {
         setHasChanges(false);
         setConfirmModal(null);
+        // Persist to API
+        settingsApi.updateDomain(selectedDomain, { ...settings, updated_by: USERS[currentRole]?.name || 'System' }).catch(() => {});
         showToast("success", "Ayarlar başarıyla kaydedildi. Denetim izi güncellendi.");
       },
     });
   };
 
   const handleDiscard = () => {
-    const domainData = DOMAIN_SETTINGS[selectedDomain];
-    setSettings({ ...domainData });
+    settingsApi.getDomain(selectedDomain).then(data => {
+      setSettings({
+        maker_checker_enabled: !!data.maker_checker_enabled,
+        notification_enabled: !!data.notification_enabled,
+        default_currency: data.default_currency,
+        close_reasons: Array.isArray(data.close_reasons) ? data.close_reasons : JSON.parse(data.close_reasons || '[]'),
+        reviewer_link_expiry_hours: data.reviewer_link_expiry_hours,
+        reviewer_inactivity_timeout_min: data.reviewer_inactivity_timeout_min,
+        reviewer_otp_enabled: !!data.reviewer_otp_enabled,
+        case_delete_enabled: data.case_delete_enabled !== undefined ? !!data.case_delete_enabled : true,
+      });
+    }).catch(() => {
+      setSettings({ ...DOMAIN_SETTINGS[selectedDomain] });
+    });
     setHasChanges(false);
     showToast("warning", "Değişiklikler geri alındı.");
   };
@@ -411,17 +439,6 @@ export default function SCMSettings({ onNavigate } = {}) {
     setRoleModalOpen(false);
   };
 
-  // Nav items (admin sees all menu items but only settings is active for them)
-  const navItems = [
-    { key: "dashboard", label: "Dashboard", sublabel: "Ana Sayfa", icon: <Icons.Dashboard /> },
-    { key: "case_creation", label: "Vaka Oluşturma", sublabel: "Case Creation", icon: <Icons.CaseCreate /> },
-    { key: "cases", label: "Vaka Listesi", sublabel: "Case List", icon: <Icons.Cases /> },
-    { key: "my_cases", label: "Vakalarım", sublabel: "My Cases", icon: <Icons.MyCases /> },
-    { key: "txn_search", label: "İşlem Arama", sublabel: "Transaction Search", icon: <Icons.TransactionSearch /> },
-    { key: "reports", label: "Raporlar", sublabel: "Reports", icon: <Icons.Reports /> },
-    { key: "settings", label: "Ayarlar", sublabel: "Settings", icon: <Icons.Settings /> },
-  ];
-
   const settingsSections = [
     { key: "system", label: "Sistem Ayarları", icon: <Icons.Shield /> },
     { key: "notification", label: "Bildirim & E-posta", icon: <Icons.Mail /> },
@@ -430,7 +447,7 @@ export default function SCMSettings({ onNavigate } = {}) {
   ];
 
   const domainLabel = FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label || "";
-  const unreadCount = NOTIFICATIONS.filter(n => !n.read).length;
+
 
   const filteredAudit = CONFIG_AUDIT_LOG.filter(log => {
     if (!auditFilter) return true;
@@ -438,158 +455,36 @@ export default function SCMSettings({ onNavigate } = {}) {
     return log.setting.toLowerCase().includes(q) || log.domain.toLowerCase().includes(q) || log.user.toLowerCase().includes(q);
   });
 
-  const sW = sidebarCollapsed ? 72 : 260;
+
 
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "'DM Sans', 'Segoe UI', -apple-system, sans-serif", background: C.bg, color: C.text, overflow: "hidden", ...(darkMode ? {filter:"invert(1) hue-rotate(180deg)"} : {}) }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <div className="scm-layout">
       <style>{`
         @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes slideIn { from { transform: translateX(100%) } to { transform: translateX(0) } }
         @keyframes scaleIn { from { opacity: 0; transform: scale(0.95) } to { opacity: 1; transform: scale(1) } }
         @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.5 } }
-        * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: #CBD5E1 transparent; }
         *::-webkit-scrollbar { width: 6px; } *::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
         input:focus, textarea:focus, select:focus { outline: 2px solid ${C.primaryLight}; outline-offset: -1px; }
       `}</style>
       <Toast toast={toast} onClose={() => setToast(null)} />
 
-      {/* ═══ SIDEBAR ═══ */}
-      <aside style={{
-        width: sW, minWidth: sW, background: C.sidebar, display: "flex", flexDirection: "column",
-        transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)", flexShrink: 0, zIndex: 100, position: "relative",
-      }}>
-        {/* Logo */}
-        <div style={{ padding: sidebarCollapsed ? "20px 16px" : "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, minHeight: 72 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>S</div>
-          {!sidebarCollapsed && (
-            <div>
-              <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>SADE SCM</div>
-              <div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div>
-            </div>
-          )}
-        </div>
-
-        {/* Domain Selector */}
-        <div style={{ padding: sidebarCollapsed ? "10px 8px" : "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          {!sidebarCollapsed && (
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, padding: "0 4px" }}>Domain Seçimi</div>
-          )}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setDomainMenuOpen(!domainMenuOpen)}
-              title={sidebarCollapsed ? domainLabel : undefined}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 10,
-                padding: sidebarCollapsed ? "8px" : "8px 12px",
-                borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.05)", cursor: "pointer",
-                color: "#E2E8F0", transition: "all 0.15s ease",
-                justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-              }}
-            >
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.icon}</span>
-              {!sidebarCollapsed && (
-                <>
-                  <span style={{ flex: 1, textAlign: "left", fontSize: 12.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{domainLabel}</span>
-                  <Icons.ChevronDown />
-                </>
-              )}
-            </button>
-            {domainMenuOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: sidebarCollapsed ? "auto" : 0, width: sidebarCollapsed ? 220 : "100%", background: "#1E293B", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 6, zIndex: 200, animation: "scaleIn 0.15s ease" }}>
-                {FRAUD_DOMAINS.map(d => (
-                  <button key={d.id} onClick={() => { setSelectedDomain(d.id); setDomainMenuOpen(false); }}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
-                      borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12.5,
-                      background: d.id === selectedDomain ? "rgba(59,130,246,0.15)" : "transparent",
-                      color: d.id === selectedDomain ? "#93C5FD" : "#CBD5E1",
-                      fontFamily: "'DM Sans', sans-serif",
-                    }}
-                  >
-                    <span style={{ fontSize: 14 }}>{d.icon}</span>
-                    <span style={{ fontWeight: d.id === selectedDomain ? 600 : 400 }}>{d.label}</span>
-                    {d.id === selectedDomain && <span style={{ marginLeft: "auto", color: "#3B82F6" }}>●</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav style={{ flex: 1, padding: "8px 10px", overflow: "auto" }}>
-          {navItems.map(item => {
-            const isActive = item.key === "settings";
-            const isDisabledForAdmin = currentRole === "admin" && !["settings", "user_mgmt", "reports"].includes(item.key);
-            return (
-              <button key={item.key} onClick={() => { if (!isDisabledForAdmin && onNavigate) onNavigate(item.key); }} title={sidebarCollapsed ? item.label : undefined}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 12,
-                  padding: sidebarCollapsed ? "10px" : "10px 14px",
-                  borderRadius: 8, border: "none", cursor: isDisabledForAdmin ? "default" : "pointer",
-                  background: isActive ? C.sidebarActive : "transparent",
-                  color: isDisabledForAdmin ? "#475569" : isActive ? "#fff" : "#94A3B8",
-                  fontSize: 13, fontFamily: "'DM Sans', sans-serif", marginBottom: 2,
-                  textAlign: "left", transition: "all 0.15s ease",
-                  opacity: isDisabledForAdmin ? 0.4 : 1,
-                  justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                }}
-              >
-                {item.icon}
-                {!sidebarCollapsed && (
-                  <div>
-                    <div style={{ fontWeight: isActive ? 600 : 500 }}>{item.label}</div>
-                    <div style={{ fontSize: 10, color: isActive ? "rgba(255,255,255,0.7)" : "#64748B", marginTop: 1 }}>{item.sublabel}</div>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Sidebar Footer */}
-        <div style={{ padding: sidebarCollapsed ? "12px 8px" : "12px 14px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
-            <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg, #F59E0B, #D97706)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
-              {currentUser.name.split(" ").map(n => n[0]).join("")}
-            </div>
-            {!sidebarCollapsed && (
-              <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ flex: 1, overflow: "hidden", cursor: "pointer" }}>
-                <div style={{ color: "#E2E8F0", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{currentUser.name}</div>
-                <div style={{ color: "#64748B", fontSize: 10.5 }}>Admin</div>
-              </div>
-            )}
-            {/* Dark Mode Toggle */}
-            <button onClick={e => { e.stopPropagation(); setDarkMode(d => !d); }} title={darkMode ? "Açık Mod" : "Koyu Mod"} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8", flexShrink: 0 }}>
-              {darkMode ? <Icons.Sun /> : <Icons.Moon />}
-            </button>
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <button onClick={() => setNotifPanelOpen(!notifPanelOpen)} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: 6, cursor: "pointer", color: "#94A3B8", display: "flex", position: "relative" }}>
-                <Icons.Bell />
-                {unreadCount > 0 && <span style={{ position: "absolute", top: -4, right: -4, width: 16, height: 16, borderRadius: "50%", background: "#EF4444", color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{unreadCount}</span>}
-              </button>
-            </div>
-          </div>
-          {showUserMenu && (
-            <div onClick={e => e.stopPropagation()} style={{ position: "fixed", bottom: 72, left: sidebarCollapsed ? 80 : 268, background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 180, zIndex: 400, overflow: "hidden" }}>
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid #E2E8F0", fontSize: 12, color: "#64748B" }}>{currentUser.name}</div>
-              <button onClick={() => setShowUserMenu(false)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 16px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#EF4444", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.background = "#FEF2F2"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}><Icons.LogOut /> Çıkış Yap</button>
-            </div>
-          )}
-          <div style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
-            <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: 6, cursor: "pointer", color: "#94A3B8", display: "flex" }}>
-              <Icons.Collapse />
-            </button>
-          </div>
-        </div>
-      </aside>
+      <Sidebar
+        activePage="settings"
+        onNavigate={onNavigate}
+        user={USERS[currentRole]}
+        selectedDomain={selectedDomain}
+        onDomainChange={setSelectedDomain}
+        collapsed={sidebarCollapsed}
+        onCollapseToggle={() => setSidebarCollapsed(c => !c)}
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        onMarkRead={onMarkRead}
+      />
 
       {/* ═══ MAIN CONTENT ═══ */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }} onClick={() => { setNotifPanelOpen(false); setShowUserMenu(false); setDomainMenuOpen(false); }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* Header */}
         <header style={{
           padding: "16px 28px", background: "#fff", borderBottom: `1px solid ${C.border}`,
@@ -602,6 +497,14 @@ export default function SCMSettings({ onNavigate } = {}) {
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
+              {["analyst", "manager", "admin"].map(role => (
+                <button key={role} onClick={() => onRoleChange && onRoleChange(role)} style={{ padding: "6px 14px", fontSize: 11.5, fontWeight: 600, border: "none", cursor: "pointer", background: currentRole === role ? C.primary : "#fff", color: currentRole === role ? "#fff" : C.textSecondary, transition: "all 0.15s ease" }}>
+                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : "Admin"}
+                </button>
+              ))}
+            </div>
+            <button style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", fontSize: 12, color: C.textSecondary }}><Icons.Globe /> TR</button>
             {hasChanges && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, animation: "fadeIn 0.2s ease" }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.accent, animation: "pulse 2s infinite" }} />
@@ -683,9 +586,33 @@ export default function SCMSettings({ onNavigate } = {}) {
                   <div style={{ marginTop: 12, padding: "10px 14px", background: "#FFFBEB", borderRadius: 8, border: "1px solid #FDE68A", display: "flex", gap: 8, alignItems: "flex-start" }}>
                     <Icons.Info />
                     <div style={{ fontSize: 11.5, color: "#92400E", lineHeight: 1.5 }}>
-                      <strong>Not:</strong> Vaka silme işlemi, bu ayarın durumundan bağımsız olarak her zaman Maker-Checker sürecine tabidir.
+                      <strong>Not:</strong> Vaka silme özelliği ayrı bir ayarla kontrol edilir. Silme aktifken, işlem her zaman Maker-Checker sürecine tabidir.
                     </div>
                   </div>
+                </SettingCard>
+
+                {/* Case Delete Toggle */}
+                <SettingCard
+                  icon={<Icons.Trash />}
+                  title="Vaka Silme"
+                  description="Açıldığında kullanıcılar vakaları silebilir. Kapatıldığında vaka silme opsiyonu hiçbir kullanıcı için görünmez."
+                  badge={settings.case_delete_enabled ? { label: "Aktif", color: C.success } : { label: "Pasif", color: C.textSecondary }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ fontSize: 12.5, color: C.textSecondary }}>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, background: "#F1F5F9", padding: "2px 8px", borderRadius: 4, marginRight: 8 }}>case_delete_enabled</span>
+                      Varsayılan: <strong>Açık</strong>
+                    </div>
+                    <Toggle checked={settings.case_delete_enabled} onChange={v => updateSetting("case_delete_enabled", v)} />
+                  </div>
+                  {settings.case_delete_enabled && (
+                    <div style={{ marginTop: 12, padding: "10px 14px", background: "#FFFBEB", borderRadius: 8, border: "1px solid #FDE68A", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <Icons.Info />
+                      <div style={{ fontSize: 11.5, color: "#92400E", lineHeight: 1.5 }}>
+                        <strong>Not:</strong> Vaka silme işlemi aktif olduğunda bile her zaman Maker-Checker sürecine tabidir.
+                      </div>
+                    </div>
+                  )}
                 </SettingCard>
 
                 {/* Default Currency */}
@@ -1116,26 +1043,6 @@ export default function SCMSettings({ onNavigate } = {}) {
         </div>
       )}
 
-      {/* ═══ NOTIFICATION PANEL ═══ */}
-      {notifPanelOpen && (
-        <div style={{ position: "fixed", bottom: 60, left: sW + 8, width: 340, background: "#fff", borderRadius: 14, border: `1px solid ${C.border}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)", zIndex: 300, animation: "scaleIn 0.2s ease", overflow: "hidden" }}>
-          <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Bildirimler</span>
-            <button onClick={() => setNotifPanelOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSecondary, display: "flex" }}><Icons.X /></button>
-          </div>
-          <div style={{ maxHeight: 260, overflow: "auto" }}>
-            {NOTIFICATIONS.map(n => (
-              <div key={n.id} style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, alignItems: "flex-start", background: n.read ? "transparent" : "#EFF6FF" }}>
-                {!n.read && <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.primaryLight, marginTop: 5, flexShrink: 0 }} />}
-                <div>
-                  <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.4 }}>{n.text}</div>
-                  <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 4 }}>{n.time}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

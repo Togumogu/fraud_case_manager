@@ -1,0 +1,16 @@
+[  348005ms] ReferenceError: notifications is not defined
+    at InternalReviewPage (http://localhost:5173/src/pages/SCM_Review.jsx?t=1774340941644:6150:5)
+    at Object.react_stack_bottom_frame (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b1403db6:12867:12)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b1403db6:4212:19)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b1403db6:5568:16)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b1403db6:6139:20)
+    at runWithFiberInDEV (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b1403db6:850:66)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b1403db6:8428:92)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b1403db6:8324:37)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b1403db6:8308:6)
+    at performWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b1403db6:7993:27)
+[  348000ms] [WARNING] %s
+
+%s
+ An error occurred in the <InternalReviewPage> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/@vite/client:509

@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
+import Sidebar from "../components/Sidebar";
+import { fdm } from "../api/client";
 
 // ─── Mock Data ───
 const USERS = {
@@ -59,51 +61,26 @@ const convertAmount = (amount, fromCurrency, toCurrency) => {
   return Math.round(amount * FX_RATES[fromCurrency][toCurrency]);
 };
 
-const generateTransactions = () => {
-  const sources = ["payment_fraud", "cc_fraud", "app_fraud", "int_fraud"];
-  const sourceLabels = { payment_fraud: "Payment Fraud", cc_fraud: "Credit Card Fraud", app_fraud: "Application Fraud", int_fraud: "Internal Fraud" };
-  const sourceColors = { payment_fraud: "#3B82F6", cc_fraud: "#8B5CF6", app_fraud: "#F59E0B", int_fraud: "#EF4444" };
-  const entityTypes = ["Customer", "Account", "Card", "Device"];
-  const statuses = ["Marked", "Unmarked"];
-  const severities = ["Low", "Medium", "High", "Critical"];
-  const severityScores = { Low: [10, 30], Medium: [31, 60], High: [61, 85], Critical: [86, 99] };
-
-  return Array.from({ length: 42 }, (_, i) => {
-    const src = sources[Math.floor(Math.random() * sources.length)];
-    const sev = i < 8 ? "Critical" : i < 18 ? "High" : i < 30 ? "Medium" : severities[Math.floor(Math.random() * severities.length)];
-    const range = severityScores[sev];
-    const isMarked = i < 28 ? "Marked" : statuses[Math.floor(Math.random() * 2)];
-    const isCaseAssigned = i >= 35 && i < 40;
-    const entityType = entityTypes[Math.floor(Math.random() * entityTypes.length)];
-    const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, "0");
-    const month = String(Math.floor(Math.random() * 3) + 1).padStart(2, "0");
-    const hour = String(Math.floor(Math.random() * 24)).padStart(2, "0");
-    const min = String(Math.floor(Math.random() * 60)).padStart(2, "0");
-    const currency = ["TRY", "USD", "EUR"][Math.floor(Math.random() * 3)];
-    const amount = Math.floor(Math.random() * 500000) + 500;
-
-    return {
-      id: `TRX-${String(900100 + i)}`,
-      source: src,
-      sourceLabel: sourceLabels[src],
-      sourceColor: sourceColors[src],
-      entityType,
-      entityKey: entityType === "Customer" ? `C${100000 + Math.floor(Math.random() * 900000)}` : entityType === "Account" ? `TR${Math.floor(Math.random() * 9000000000) + 1000000000}` : entityType === "Card" ? `**** **** **** ${String(Math.floor(Math.random() * 9000) + 1000)}` : `DEV-${String(Math.floor(Math.random() * 90000) + 10000)}`,
-      severity: sev,
-      score: Math.floor(Math.random() * (range[1] - range[0] + 1)) + range[0],
-      triggerRule: `RULE-${Math.floor(Math.random() * 500) + 100}`,
-      markStatus: isCaseAssigned ? "Case Assigned" : isMarked,
-      createDate: `${day}.${month}.2026 ${hour}:${min}`,
-      caseId: isCaseAssigned ? `#${2400 + Math.floor(Math.random() * 70)}` : null,
-      amount,
-      currency,
-      customerName: ["Ahmet Kara", "Fatma Demir", "Murat Yılmaz", "Zehra Aksoy", "Emre Çelik", "Sude Öztürk"][Math.floor(Math.random() * 6)],
-      customerNo: `C${100000 + Math.floor(Math.random() * 900000)}`,
-    };
-  });
+const DOMAIN_TO_SOURCE = {
+  payment: "payment_fraud",
+  credit_card: "cc_fraud",
+  application: "app_fraud",
+  account_takeover: "ato_fraud",
+  internal: "int_fraud",
 };
 
-const TRANSACTIONS = generateTransactions();
+function normalizeTransaction(t) {
+  return {
+    id: t.id, source: t.source,
+    sourceLabel: t.source_label, sourceColor: t.source_color,
+    entityType: t.entity_type, entityKey: t.entity_key,
+    severity: t.severity, score: t.score,
+    triggerRule: t.trigger_rule, markStatus: t.mark_status,
+    createDate: t.create_date, caseId: t.case_id,
+    amount: t.amount, currency: t.currency,
+    customerName: t.customer_name, customerNo: t.customer_no,
+  };
+}
 
 // ─── Icons ───
 const Icons = {
@@ -134,6 +111,9 @@ const Icons = {
   Moon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
   Sun: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
   LogOut: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  SortAsc: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12l7-7 7 7"/></svg>,
+  SortDesc: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>,
+  Eye: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
 };
 
 // ─── Color System ───
@@ -157,25 +137,42 @@ const MARK_COLORS = {
   "Case Assigned": { bg: "#EDE9FE", color: "#5B21B6", border: "#C4B5FD" },
 };
 
+const SEVERITY_STYLES = {
+  Critical: { label: "Kritik", bg: "#FEE2E2", color: "#991B1B", border: "#FECACA" },
+  High: { label: "Yüksek", bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
+  Medium: { label: "Orta", bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" },
+  Low: { label: "Düşük", bg: "#F3F4F6", color: "#374151", border: "#E5E7EB" },
+};
+const STATUS_STYLES = {
+  "Marked": { label: "İşaretli", bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
+  "Unmarked": { label: "İşaretsiz", bg: "#F3F4F6", color: "#374151", border: "#E5E7EB" },
+  "Case Assigned": { label: "Vakaya Atandı", bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" },
+  "Under Review": { label: "İncelemede", bg: "#F3E8FF", color: "#6B21A8", border: "#DDD6FE" },
+};
+const Badge = ({ config }) => (
+  <span style={{
+    display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 6,
+    fontSize: 11, fontWeight: 600, background: config.bg, color: config.color,
+    border: `1px solid ${config.border}`, whiteSpace: "nowrap",
+  }}>{config.label}</span>
+);
+
 const formatCurrency = (amount, currency) => {
   const symbols = { TRY: "₺", USD: "$", EUR: "€" };
   return `${symbols[currency] || ""}${amount.toLocaleString("tr-TR")}`;
 };
 
 // ─── Main Component ───
-export default function SCMCaseCreation({ onNavigate } = {}) {
-  const [currentRole, setCurrentRole] = useState("analyst");
+export default function SCMCaseCreation({ onNavigate, transactions: transactionsProp, cases: casesProp, onCaseCreated, currentRole = "analyst", onRoleChange, notifications = [], onMarkAllRead, onMarkRead, showToast: showToastProp } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Domain selection (system-wide, from sidebar)
   const [selectedDomain, setSelectedDomain] = useState("payment");
-  const [domainMenuOpen, setDomainMenuOpen] = useState(false);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimerRef = useRef(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filters, setFilters] = useState({
     markStatus: "Marked",
@@ -187,14 +184,19 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
     dateTo: "",
   });
 
-  // Selection state
-  const [selectedTxns, setSelectedTxns] = useState(new Set());
+  // Selection state — Map<id, txnObject> for cross-page persistence
+  const [selectedTxns, setSelectedTxns] = useState(new Map());
+
+  // API state
+  const [transactions, setTransactions] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   // Currency display toggle
   const [displayCurrency, setDisplayCurrency] = useState("original"); // "original" | "TRY" | "USD"
 
   // Column search (inline table header search)
-  const [colSearch, setColSearch] = useState({ id: "", source: "", entityType: "", entityKey: "", score: "", triggerRule: "", markStatus: "", date: "", amount: "" });
+  const [colSearch, setColSearch] = useState({ id: "", customer: "", entityType: "", entityKey: "", score: "", markStatus: "", date: "", amount: "" });
 
   // Sort state
   const [sortCol, setSortCol] = useState(null); // column key
@@ -226,45 +228,67 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
 
   // Toast
   const [toast, setToast] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const user = USERS[currentRole];
   const isManager = currentRole === "manager" || currentRole === "admin";
 
-  // Filter transactions
-  const filtered = TRANSACTIONS.filter(t => {
-    // Only show non-case-assigned transactions (vakasız işlemler)
-    if (t.markStatus === "Case Assigned") return false;
-    if (searchQuery.length >= 2) {
-      const q = searchQuery.toLowerCase();
-      if (!t.id.toLowerCase().includes(q) && !t.customerNo.toLowerCase().includes(q) && !t.customerName.toLowerCase().includes(q) && !t.entityKey.toLowerCase().includes(q)) return false;
-    }
-    // Column-level inline searches
+  // Fetch transactions from API
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const markStatusParam = (filters.markStatus && filters.markStatus !== "Tümü") ? filters.markStatus : undefined;
+    fdm.transactions({
+      domain: DOMAIN_TO_SOURCE[selectedDomain],
+      page, limit: perPage,
+      search: debouncedSearch || undefined,
+      mark_status: markStatusParam,
+      entity_type: filters.entityType || undefined,
+      entity_key: filters.entityId || undefined,
+      score_min: filters.scoreMin || undefined,
+      score_max: filters.scoreMax || undefined,
+      date_from: filters.dateFrom || undefined,
+      date_to: filters.dateTo || undefined,
+    }).then(result => {
+      if (!cancelled) {
+        let rows = result.data.map(normalizeTransaction);
+        if (!markStatusParam) rows = rows.filter(t => t.markStatus !== "Case Assigned");
+        setTransactions(rows);
+        setTotalCount(result.total);
+      }
+    }).catch((err) => {
+      if (!cancelled) {
+        setTransactions([]);
+        setTotalCount(0);
+        const localToast = (t, m) => { setToast({ type: t, msg: m }); setTimeout(() => setToast(null), 4000); };
+        (showToastProp || localToast)("error", err?.message || "İşlemler yüklenemedi");
+      }
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedDomain, page, perPage, debouncedSearch,
+      filters.markStatus, filters.entityType, filters.entityId,
+      filters.scoreMin, filters.scoreMax, filters.dateFrom, filters.dateTo]);
+
+  // Client-side filtering: colSearch inline table filters only
+  const filtered = transactions.filter(t => {
     if (colSearch.id && !t.id.toLowerCase().includes(colSearch.id.toLowerCase())) return false;
-    if (colSearch.source && !t.sourceLabel.toLowerCase().includes(colSearch.source.toLowerCase())) return false;
+    if (colSearch.customer && !t.customerName.toLowerCase().includes(colSearch.customer.toLowerCase()) && !t.customerNo.toLowerCase().includes(colSearch.customer.toLowerCase())) return false;
     if (colSearch.entityType && !t.entityType.toLowerCase().includes(colSearch.entityType.toLowerCase())) return false;
     if (colSearch.entityKey && !t.entityKey.toLowerCase().includes(colSearch.entityKey.toLowerCase())) return false;
     if (colSearch.score && !String(t.score).includes(colSearch.score) && !t.severity.toLowerCase().includes(colSearch.score.toLowerCase())) return false;
-    if (colSearch.triggerRule && !t.triggerRule.toLowerCase().includes(colSearch.triggerRule.toLowerCase())) return false;
-    if (colSearch.markStatus && !t.markStatus.toLowerCase().includes(colSearch.markStatus.toLowerCase())) return false;
+    if (colSearch.markStatus && !t.markStatus.toLowerCase().includes(colSearch.markStatus.toLowerCase()) && !(STATUS_STYLES[t.markStatus]?.label || "").toLowerCase().includes(colSearch.markStatus.toLowerCase())) return false;
     if (colSearch.date && !t.createDate.includes(colSearch.date)) return false;
     if (colSearch.amount && !String(t.amount).includes(colSearch.amount)) return false;
-    // Panel filters
-    if (filters.markStatus && filters.markStatus !== "Tümü" && t.markStatus !== filters.markStatus) return false;
-    if (filters.entityType && !t.entityType.toLowerCase().includes(filters.entityType.toLowerCase())) return false;
-    if (filters.entityId && !t.entityKey.toLowerCase().includes(filters.entityId.toLowerCase())) return false;
-    if (filters.scoreMin && t.score < parseInt(filters.scoreMin)) return false;
-    if (filters.scoreMax && t.score > parseInt(filters.scoreMax)) return false;
     return true;
   });
 
   // Sort
   const SORT_ACCESSORS = {
     id: t => t.id,
-    source: t => t.sourceLabel,
+    customer: t => t.customerName,
     entityType: t => t.entityType,
     entityKey: t => t.entityKey,
     score: t => t.score,
-    triggerRule: t => t.triggerRule,
     markStatus: t => t.markStatus,
     date: t => { const p = t.createDate.split(/[.\s:]/); return new Date(2026, parseInt(p[1])-1, parseInt(p[0]), parseInt(p[2]||0), parseInt(p[3]||0)); },
     amount: t => t.amount,
@@ -280,60 +304,98 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
     return sortDir === "asc" ? cmp : -cmp;
   }) : filtered;
 
-  const totalPages = Math.ceil(sorted.length / perPage);
-  const paged = sorted.slice((page - 1) * perPage, page * perPage);
+  const totalPages = Math.ceil(totalCount / perPage);
+  const paged = sorted;
 
   const handleSelectAll = () => {
+    const next = new Map(selectedTxns);
     if (paged.every(t => selectedTxns.has(t.id))) {
-      const next = new Set(selectedTxns);
       paged.forEach(t => next.delete(t.id));
-      setSelectedTxns(next);
     } else {
-      const next = new Set(selectedTxns);
-      paged.forEach(t => next.add(t.id));
-      setSelectedTxns(next);
+      paged.forEach(t => next.set(t.id, t));
     }
+    setSelectedTxns(next);
   };
 
-  const handleSelect = (id) => {
-    const next = new Set(selectedTxns);
-    if (next.has(id)) next.delete(id); else next.add(id);
+  const handleSelect = (t) => {
+    const next = new Map(selectedTxns);
+    if (next.has(t.id)) next.delete(t.id); else next.set(t.id, t);
     setSelectedTxns(next);
   };
 
   const handleCreateCase = () => {
     const errors = {};
-    if (!caseForm.name.trim()) errors.name = "Vaka adı zorunludur";
-    if (!caseForm.severity) errors.severity = "Önem derecesi zorunludur";
+    if (!caseForm.name.trim()) {
+      errors.name = "Vaka adı zorunludur";
+    } else if (caseForm.name.trim().length < 3) {
+      errors.name = "Vaka adı en az 3 karakter olmalıdır";
+    }
+    if (!caseForm.severity) errors.severity = "Önem derecesi seçilmelidir";
+    if (selectedTxns.size === 0) errors.txns = "En az bir işlem seçilmelidir";
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    const parentCase = caseForm.parentCaseId ? EXISTING_CASES.find(c => c.id === caseForm.parentCaseId) : null;
-    const parentInfo = parentCase ? ` (Üst Vaka: #${parentCase.id})` : "";
-    setToast({ type: "success", msg: `Vaka "${caseForm.name}" başarıyla oluşturuldu. ${selectedTxns.size} işlem vakaya eklendi.${parentInfo}` });
+    // Gather selected transaction objects
+    const txnObjects = Array.from(selectedTxns.values());
+    const totalAmount = txnObjects.reduce((s, t) => s + t.amount, 0);
+    const currency = txnObjects.length > 0 ? txnObjects[0].currency : "TRY";
+
+    // Determine today string
+    const d = new Date();
+    const today = `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}`;
+
+    // Next ID: use shared cases state if available, else fall back to EXISTING_CASES
+    const allCasesForId = casesProp || EXISTING_CASES;
+    const maxId = Math.max(...allCasesForId.map(c => c.id), 2471);
+    const newId = maxId + 1;
+
+    const newCase = {
+      id: newId,
+      name: caseForm.name.trim(),
+      status: "Open",
+      severity: caseForm.severity,
+      owner: caseForm.assignee || user.name,
+      ownerId: user.id,
+      createUser: user.name,
+      createDate: today,
+      createTime: `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`,
+      updateUser: user.name,
+      updateDate: today,
+      updateTime: `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`,
+      description: caseForm.description || "",
+      totalAmount,
+      currency,
+      bankShare: Math.round(totalAmount * 0.6),
+      customerShare: Math.round(totalAmount * 0.4),
+      domain: caseForm.domain || selectedDomain,
+      parentCaseId: caseForm.parentCaseId || null,
+      transactions: txnObjects,
+    };
+
+    setSubmitting(true);
+    if (onCaseCreated) {
+      onCaseCreated(newCase);
+    } else {
+      // Fallback: just show toast (no shared state)
+      const parentCase = caseForm.parentCaseId ? EXISTING_CASES.find(c => c.id === caseForm.parentCaseId) : null;
+      const parentInfo = parentCase ? ` (Üst Vaka: #${parentCase.id})` : "";
+      setToast({ type: "success", msg: `Vaka "${newCase.name}" başarıyla oluşturuldu. ${selectedTxns.size} işlem vakaya eklendi.${parentInfo}` });
+      setTimeout(() => setToast(null), 4000);
+    }
+    setSubmitting(false);
+
     setShowCreateModal(false);
-    setSelectedTxns(new Set());
+    setSelectedTxns(new Map());
     setCaseForm({ name: "", domain: "", severity: "", assignee: "", description: "", parentCaseId: null });
+    setFormErrors({});
     setParentSearchQuery("");
-    setTimeout(() => setToast(null), 4000);
   };
 
   const resetFilters = () => {
     setFilters({ markStatus: "Marked", entityType: "", entityId: "", scoreMin: "", scoreMax: "", dateFrom: "", dateTo: "" });
     setColSearch({ id: "", source: "", entityType: "", entityKey: "", score: "", triggerRule: "", markStatus: "", date: "", amount: "" });
-    setSearchQuery("");
-    setPage(1);
+    setSearchQuery(""); setDebouncedSearch(""); clearTimeout(searchTimerRef.current); setPage(1);
   };
-
-  const navItems = [
-    { key: "dashboard", label: "Dashboard", sublabel: "Ana Sayfa", icon: <Icons.Dashboard /> },
-    { key: "case_creation", label: "Vaka Oluşturma", sublabel: "Case Creation", icon: <Icons.CaseCreate /> },
-    { key: "cases", label: "Vaka Listesi", sublabel: "Case List", icon: <Icons.Cases /> },
-    { key: "my_cases", label: "Vakalarım", sublabel: "My Cases", icon: <Icons.MyCases /> },
-    { key: "txn_search", label: "İşlem Arama", sublabel: "Transaction Search", icon: <Icons.TransactionSearch /> },
-    { key: "reports", label: "Raporlar", sublabel: "Reports", icon: <Icons.Reports /> },
-    ...(currentRole === "admin" ? [{ key: "settings", label: "Ayarlar", sublabel: "Settings", icon: <Icons.Settings /> }] : []),
-  ];
 
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => {
     if (k === "markStatus" && v === "Marked") return false;
@@ -341,230 +403,19 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
   }).length;
 
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "'DM Sans', 'Segoe UI', -apple-system, sans-serif", background: C.bg, color: C.text, overflow: "hidden", ...(darkMode ? {filter:"invert(1) hue-rotate(180deg)"} : {}) }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
-      {/* ── Sidebar ── */}
-      <aside style={{
-        width: sidebarCollapsed ? 72 : 260, background: C.sidebar,
-        display: "flex", flexDirection: "column", transition: "width 0.3s cubic-bezier(0.4,0,0.2,1)",
-        flexShrink: 0, zIndex: 100, position: "relative",
-      }}>
-        {/* Logo */}
-        <div style={{ padding: sidebarCollapsed ? "20px 16px" : "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, minHeight: 72 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>S</div>
-          {!sidebarCollapsed && (
-            <div>
-              <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>SADE SCM</div>
-              <div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div>
-            </div>
-          )}
-        </div>
-
-        {/* Domain Seçimi */}
-        <div style={{ padding: sidebarCollapsed ? "10px 8px" : "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          {!sidebarCollapsed && (
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, padding: "0 4px" }}>
-              Domain Seçimi
-            </div>
-          )}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setDomainMenuOpen(!domainMenuOpen)}
-              title={sidebarCollapsed ? FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label : undefined}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 10,
-                padding: sidebarCollapsed ? "8px" : "8px 12px",
-                borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.05)", cursor: "pointer",
-                color: "#E2E8F0", transition: "all 0.15s ease",
-                justifyContent: sidebarCollapsed ? "center" : "space-between",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-              onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 14 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.icon}</span>
-                {!sidebarCollapsed && (
-                  <span style={{ fontSize: 12.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label}
-                  </span>
-                )}
-              </div>
-              {!sidebarCollapsed && (
-                <span style={{ transition: "transform 0.2s ease", transform: domainMenuOpen ? "rotate(180deg)" : "rotate(0deg)", display: "flex", flexShrink: 0, color: "#64748B" }}>
-                  <Icons.ChevronDown />
-                </span>
-              )}
-            </button>
-            {domainMenuOpen && (
-              <div style={{
-                position: "absolute", top: "calc(100% + 4px)", left: 0,
-                width: sidebarCollapsed ? 200 : "100%",
-                background: "#1E293B", borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.1)",
-                boxShadow: "0 12px 40px rgba(0,0,0,0.4)", zIndex: 300,
-                overflow: "hidden",
-                ...(sidebarCollapsed ? { left: 8 } : {}),
-              }}>
-                {FRAUD_DOMAINS.map(domain => (
-                  <div
-                    key={domain.id}
-                    onClick={() => { setSelectedDomain(domain.id); setDomainMenuOpen(false); }}
-                    style={{
-                      padding: "10px 14px", cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 10,
-                      background: selectedDomain === domain.id ? "rgba(59,130,246,0.15)" : "transparent",
-                      transition: "all 0.1s ease",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = selectedDomain === domain.id ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.05)"}
-                    onMouseLeave={e => e.currentTarget.style.background = selectedDomain === domain.id ? "rgba(59,130,246,0.15)" : "transparent"}
-                  >
-                    <span style={{ fontSize: 13 }}>{domain.icon}</span>
-                    <span style={{ fontSize: 12.5, fontWeight: selectedDomain === domain.id ? 600 : 400, color: selectedDomain === domain.id ? "#60A5FA" : "#CBD5E1" }}>
-                      {domain.label}
-                    </span>
-                    {selectedDomain === domain.id && (
-                      <span style={{ marginLeft: "auto", color: "#60A5FA", display: "flex" }}><Icons.Check /></span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Nav Items */}
-        <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
-          {navItems.map(item => (
-            <button key={item.key} onClick={() => { if (onNavigate) onNavigate(item.key); }} title={sidebarCollapsed ? item.label : undefined} style={{
-              display: "flex", alignItems: "center", gap: 12,
-              padding: sidebarCollapsed ? "12px 16px" : "10px 16px",
-              borderRadius: 8, border: "none", cursor: "pointer",
-              background: item.key === "case_creation" ? "rgba(59,130,246,0.15)" : "transparent",
-              color: item.key === "case_creation" ? "#60A5FA" : "#94A3B8",
-              transition: "all 0.15s ease", width: "100%", textAlign: "left",
-              justifyContent: sidebarCollapsed ? "center" : "flex-start",
-            }}>
-              <span style={{ flexShrink: 0, display: "flex" }}>{item.icon}</span>
-              {!sidebarCollapsed && (
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: item.key === "case_creation" ? 600 : 500, lineHeight: 1.3 }}>{item.label}</div>
-                  <div style={{ fontSize: 10.5, color: "#475569", lineHeight: 1.2 }}>{item.sublabel}</div>
-                </div>
-              )}
-            </button>
-          ))}
-        </nav>
-
-        {/* User Profile + Notifications */}
-        <div style={{ padding: sidebarCollapsed ? "16px 8px" : "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
-            <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg, #6366F1, #8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-              {user.name.split(" ").map(n => n[0]).join("")}
-            </div>
-            {!sidebarCollapsed && (
-              <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ flex: 1, overflow: "hidden", cursor: "pointer" }}>
-                <div style={{ color: "#E2E8F0", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{user.name}</div>
-                <div style={{ color: "#64748B", fontSize: 11, textTransform: "capitalize" }}>{user.role === "analyst" ? "Fraud Analist" : user.role === "manager" ? "Yönetici" : "Admin"}</div>
-              </div>
-            )}
-            {/* Dark Mode Toggle */}
-            <button onClick={e => { e.stopPropagation(); setDarkMode(d => !d); }} title={darkMode ? "Açık Mod" : "Koyu Mod"} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8", flexShrink: 0 }}>
-              {darkMode ? <Icons.Sun /> : <Icons.Moon />}
-            </button>
-            {/* Notification Bell */}
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowNotifications(!showNotifications); }}
-                style={{
-                  width: 34, height: 34, borderRadius: 8, border: "none",
-                  background: showNotifications ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)",
-                  cursor: "pointer", display: "flex",
-                  alignItems: "center", justifyContent: "center", position: "relative",
-                  color: showNotifications ? "#60A5FA" : "#94A3B8",
-                  transition: "all 0.15s ease",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-                onMouseLeave={e => e.currentTarget.style.background = showNotifications ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)"}
-              >
-                <Icons.Bell />
-                <span style={{
-                  position: "absolute", top: 2, right: 2, width: 16, height: 16,
-                  borderRadius: "50%", background: C.danger, color: "#fff",
-                  fontSize: 9, fontWeight: 700, display: "flex",
-                  alignItems: "center", justifyContent: "center",
-                  border: "2px solid #0F172A",
-                }}>3</span>
-              </button>
-              {showNotifications && (
-                <div
-                  onClick={e => e.stopPropagation()}
-                  style={{
-                    position: "fixed", bottom: 72,
-                    left: sidebarCollapsed ? 80 : 268,
-                    width: 360,
-                    background: "#fff", borderRadius: 14, border: `1px solid ${C.border}`,
-                    boxShadow: "0 8px 40px rgba(0,0,0,0.18), 0 2px 12px rgba(0,0,0,0.08)", zIndex: 300,
-                    overflow: "hidden", color: C.text,
-                    transition: "left 0.3s cubic-bezier(0.4,0,0.2,1)",
-                  }}
-                >
-                  <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#F8FAFC" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontWeight: 700, fontSize: 15 }}>Bildirimler</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: C.danger, color: "#fff" }}>3 yeni</span>
-                    </div>
-                    <span style={{ fontSize: 12, color: C.primaryLight, cursor: "pointer", fontWeight: 600 }}>Tümünü Okundu İşaretle</span>
-                  </div>
-                  <div style={{ maxHeight: 320, overflow: "auto" }}>
-                    {[
-                      { msg: "Vaka #2469 için kapatma onayı bekliyor", time: "5 dk önce", unread: true },
-                      { msg: "Vaka #2471 size atandı", time: "2 sa önce", unread: true },
-                      { msg: "Elif Yılmaz review tamamladı (#2465)", time: "4 sa önce", unread: true },
-                    ].map((n, i) => (
-                      <div key={i} style={{
-                        padding: "14px 20px", borderBottom: `1px solid ${C.border}`,
-                        cursor: "pointer", background: n.unread ? "#FAFBFE" : "#fff",
-                        display: "flex", alignItems: "flex-start", gap: 12,
-                      }}
-                        onMouseEnter={e => e.currentTarget.style.background = "#F1F5F9"}
-                        onMouseLeave={e => e.currentTarget.style.background = n.unread ? "#FAFBFE" : "#fff"}
-                      >
-                        {n.unread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.primaryLight, flexShrink: 0, marginTop: 6 }} />}
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13.5, color: C.text, lineHeight: 1.5, fontWeight: n.unread ? 500 : 400 }}>{n.msg}</div>
-                          <div style={{ fontSize: 11.5, color: C.textSecondary, marginTop: 3 }}>{n.time}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ padding: "12px 20px", borderTop: `1px solid ${C.border}`, textAlign: "center", background: "#F8FAFC" }}>
-                    <span style={{ fontSize: 12.5, color: C.primaryLight, cursor: "pointer", fontWeight: 600 }}>Tüm Bildirimleri Gör →</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          {showUserMenu && (
-            <div onClick={e => e.stopPropagation()} style={{ position: "fixed", bottom: 72, left: sidebarCollapsed ? 80 : 268, background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 180, zIndex: 400, overflow: "hidden" }}>
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid #E2E8F0", fontSize: 12, color: "#64748B" }}>{user.name}</div>
-              <button onClick={() => setShowUserMenu(false)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 16px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#EF4444", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.background = "#FEF2F2"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}><Icons.LogOut /> Çıkış Yap</button>
-            </div>
-          )}
-        </div>
-
-        {/* Collapse Toggle */}
-        <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{
-          position: "absolute", top: 24, right: -14, width: 28, height: 28,
-          borderRadius: "50%", border: `2px solid ${C.border}`, background: "#fff",
-          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)", zIndex: 101,
-          transition: "transform 0.3s ease", transform: sidebarCollapsed ? "rotate(0deg)" : "rotate(180deg)",
-        }}>
-          <Icons.ChevronRight />
-        </button>
-      </aside>
+    <div className="scm-layout">
+      <Sidebar
+        activePage="case_creation"
+        onNavigate={onNavigate}
+        user={USERS[currentRole]}
+        selectedDomain={selectedDomain}
+        onDomainChange={setSelectedDomain}
+        collapsed={sidebarCollapsed}
+        onCollapseToggle={() => setSidebarCollapsed(c => !c)}
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        onMarkRead={onMarkRead}
+      />
 
       {/* ── Main Content ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -577,7 +428,7 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
               {["analyst", "manager", "admin"].map(role => (
-                <button key={role} onClick={() => setCurrentRole(role)} style={{
+                <button key={role} onClick={() => onRoleChange && onRoleChange(role)} style={{
                   padding: "6px 14px", fontSize: 11.5, fontWeight: 600, border: "none", cursor: "pointer", letterSpacing: "0.02em",
                   background: currentRole === role ? C.primary : "#fff",
                   color: currentRole === role ? "#fff" : C.textSecondary,
@@ -594,7 +445,7 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
         </header>
 
         {/* Content */}
-        <main style={{ flex: 1, overflow: "auto", padding: 28 }} onClick={() => { setShowNotifications(false); setDomainMenuOpen(false); setShowUserMenu(false); }}>
+        <main style={{ flex: 1, overflow: "auto", padding: 28 }}>
 
           {/* Info Banner */}
           <div style={{
@@ -625,14 +476,14 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
                 <Icons.Search />
                 <input
                   type="text" placeholder="İşlem ID, Müşteri No veya Müşteri Adı ile ara..."
-                  value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+                  value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setPage(1); clearTimeout(searchTimerRef.current); searchTimerRef.current = setTimeout(() => setDebouncedSearch(e.target.value), 350); }}
                   style={{
                     flex: 1, border: "none", background: "transparent", padding: "10px 0",
                     fontSize: 13, outline: "none", color: C.text,
                   }}
                 />
                 {searchQuery && (
-                  <button onClick={() => { setSearchQuery(""); setPage(1); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSecondary, display: "flex", padding: 2 }}>
+                  <button onClick={() => { setSearchQuery(""); setDebouncedSearch(""); clearTimeout(searchTimerRef.current); setPage(1); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSecondary, display: "flex", padding: 2 }}>
                     <Icons.X />
                   </button>
                 )}
@@ -666,7 +517,7 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
                   <span style={{ fontSize: 13, fontWeight: 600, color: "#92400E" }}>
                     {selectedTxns.size} işlem seçildi
                   </span>
-                  <button onClick={() => setSelectedTxns(new Set())} style={{
+                  <button onClick={() => setSelectedTxns(new Map())} style={{
                     background: "none", border: "none", cursor: "pointer", color: "#92400E",
                     display: "flex", padding: 0, fontSize: 12,
                   }}>
@@ -773,7 +624,7 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>İşlem Listesi</h3>
                 <span style={{ fontSize: 12, color: C.textSecondary, background: "#F1F5F9", padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>
-                  {sorted.length} işlem
+                  {totalCount} işlem
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -812,185 +663,89 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
             </div>
 
             {/* Table */}
+            {(() => {
+              const tableCols = [
+                { key: "id", label: "İşlem ID", w: 110 }, { key: "customer", label: "Müşteri", w: 140 },
+                { key: "entityType", label: "Varlık Türü", w: 95 },
+                { key: "entityKey", label: "Varlık Anahtarı", w: 150 }, { key: "score", label: "Skor", w: 80 },
+                { key: "markStatus", label: "Durum", w: 115 },
+                { key: "date", label: "Tarih", w: 120 },
+                { key: "amount", label: displayCurrency === "original" ? "Tutar" : `Tutar (${displayCurrency})`, w: 130, align: "right" },
+              ];
+              const SortIcon = ({ col }) => sortCol !== col ? <span style={{ opacity: 0.3, fontSize: 10 }}>↕</span> : sortDir === "asc" ? <Icons.SortAsc /> : <Icons.SortDesc />;
+              return (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
                 <thead>
                   <tr style={{ background: "#F8FAFC" }}>
-                    <th style={{ ...thStyle, width: 44, textAlign: "center" }}>
+                    <th style={{ width: 44, padding: "12px 14px", borderBottom: `2px solid ${C.border}`, textAlign: "center" }}>
                       <input type="checkbox"
                         checked={paged.length > 0 && paged.every(t => selectedTxns.has(t.id))}
                         onChange={handleSelectAll}
                         style={{ width: 16, height: 16, cursor: "pointer", accentColor: C.primaryLight }}
                       />
                     </th>
-                    {[
-                      { key: "id", label: "İşlem ID" },
-                      { key: "source", label: "İşlem Kaynağı" },
-                      { key: "entityType", label: "Varlık Türü" },
-                      { key: "entityKey", label: "Varlık Anahtarı" },
-                      { key: "score", label: "Fraud Skoru" },
-                      { key: "markStatus", label: "İşaretlenme" },
-                      { key: "date", label: "Tarih" },
-                      { key: "amount", label: "Tutar" },
-                    ].map(col => (
-                      <th key={col.key} onClick={() => handleSort(col.key)} style={{
-                        ...thStyle,
-                        cursor: "pointer", userSelect: "none",
-                        color: sortCol === col.key ? C.primary : "#64748B",
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span>{col.label}</span>
-                          {col.key === "amount" && displayCurrency !== "original" && (
-                            <span style={{ fontWeight: 400, textTransform: "none" }}>({displayCurrency})</span>
-                          )}
-                          <span style={{ display: "inline-flex", flexDirection: "column", lineHeight: 0, marginLeft: 2, fontSize: 8 }}>
-                            <span style={{ color: sortCol === col.key && sortDir === "asc" ? C.primary : "#CBD5E1" }}>▲</span>
-                            <span style={{ color: sortCol === col.key && sortDir === "desc" ? C.primary : "#CBD5E1" }}>▼</span>
-                          </span>
-                        </div>
+                    {tableCols.map(col => (
+                      <th key={col.key} onClick={() => handleSort(col.key)} style={{ padding: "12px 14px", fontSize: 11.5, fontWeight: 600, color: C.textSecondary, textAlign: col.align || "left", cursor: "pointer", userSelect: "none", borderBottom: `2px solid ${C.border}`, width: col.w || "auto", whiteSpace: "nowrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: col.align === "right" ? "flex-end" : "flex-start" }}>{col.label} <SortIcon col={col.key} /></div>
                       </th>
                     ))}
+                    <th style={{ width: 50, padding: "12px 14px", borderBottom: `2px solid ${C.border}` }} />
                   </tr>
-                  {/* Column-level inline search row */}
-                  <tr style={{ background: "#F8FAFC" }}>
-                    <th style={colSearchTh} />
-                    <th style={colSearchTh}>
-                      <input type="text" placeholder="Ara..." value={colSearch.id}
-                        onChange={e => { setColSearch(s => ({ ...s, id: e.target.value })); setPage(1); }}
-                        style={colSearchInput} />
-                    </th>
-                    <th style={colSearchTh}>
-                      <input type="text" placeholder="Ara..." value={colSearch.source}
-                        onChange={e => { setColSearch(s => ({ ...s, source: e.target.value })); setPage(1); }}
-                        style={colSearchInput} />
-                    </th>
-                    <th style={colSearchTh}>
-                      <input type="text" placeholder="Ara..." value={colSearch.entityType}
-                        onChange={e => { setColSearch(s => ({ ...s, entityType: e.target.value })); setPage(1); }}
-                        style={colSearchInput} />
-                    </th>
-                    <th style={colSearchTh}>
-                      <input type="text" placeholder="Ara..." value={colSearch.entityKey}
-                        onChange={e => { setColSearch(s => ({ ...s, entityKey: e.target.value })); setPage(1); }}
-                        style={colSearchInput} />
-                    </th>
-                    <th style={colSearchTh}>
-                      <input type="text" placeholder="Skor / Seviye..." value={colSearch.score}
-                        onChange={e => { setColSearch(s => ({ ...s, score: e.target.value })); setPage(1); }}
-                        style={colSearchInput} />
-                    </th>
-                    <th style={colSearchTh}>
-                      <input type="text" placeholder="Ara..." value={colSearch.markStatus}
-                        onChange={e => { setColSearch(s => ({ ...s, markStatus: e.target.value })); setPage(1); }}
-                        style={colSearchInput} />
-                    </th>
-                    <th style={colSearchTh}>
-                      <input type="text" placeholder="GG.AA.YYYY..." value={colSearch.date}
-                        onChange={e => { setColSearch(s => ({ ...s, date: e.target.value })); setPage(1); }}
-                        style={colSearchInput} />
-                    </th>
-                    <th style={colSearchTh}>
-                      <input type="text" placeholder="Tutar..." value={colSearch.amount}
-                        onChange={e => { setColSearch(s => ({ ...s, amount: e.target.value })); setPage(1); }}
-                        style={colSearchInput} />
-                    </th>
+                  <tr style={{ background: "#FAFBFD" }}>
+                    <td style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}` }} />
+                    {tableCols.map(col => (
+                      <td key={`s_${col.key}`} style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}` }}>
+                        <input type="text" placeholder="..." value={colSearch[col.key] || ""} onChange={e => { setColSearch(prev => ({ ...prev, [col.key]: e.target.value })); setPage(1); }}
+                          style={{ width: "100%", padding: "5px 8px", borderRadius: 5, border: `1px solid ${colSearch[col.key] ? C.primaryLight : "#E8ECF0"}`, fontSize: 11.5, outline: "none", background: colSearch[col.key] ? "#EFF6FF" : "#fff", color: C.text, boxSizing: "border-box" }} />
+                      </td>
+                    ))}
+                    <td style={{ borderBottom: `1px solid ${C.border}` }} />
                   </tr>
                 </thead>
                 <tbody>
-                  {paged.map(t => {
+                  {loading && <tr><td colSpan={tableCols.length + 2} style={{ padding: "48px 20px", textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Yükleniyor...</td></tr>}
+                  {!loading && paged.length === 0 && <tr><td colSpan={tableCols.length + 2} style={{ padding: "48px 20px", textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Arama kriterlerine uygun işlem bulunamadı.</td></tr>}
+                  {!loading && paged.map(t => {
                     const isSelected = selectedTxns.has(t.id);
-                    const sevCfg = SEV_COLORS[t.severity];
-                    const markCfg = MARK_COLORS[t.markStatus];
-
+                    const sevStyle = SEVERITY_STYLES[t.severity];
+                    const statusStyle = STATUS_STYLES[t.markStatus];
+                    const displayAmount = displayCurrency === "original" ? t.amount : convertAmount(t.amount, t.currency, displayCurrency);
+                    const displayCurr = displayCurrency === "original" ? t.currency : displayCurrency;
                     return (
-                      <tr key={t.id} style={{
-                        borderBottom: `1px solid ${C.border}`,
-                        background: isSelected ? "#EFF6FF" : "#fff",
-                        transition: "background 0.1s ease",
-                      }}
+                      <tr key={t.id} style={{ borderBottom: "1px solid #F1F5F9", background: isSelected ? "#EFF6FF" : "transparent", transition: "background 0.1s", cursor: "pointer" }}
                         onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "#F8FAFC"; }}
-                        onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isSelected ? "#EFF6FF" : "#fff"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = isSelected ? "#EFF6FF" : "transparent"; }}
                       >
-                        <td style={{ ...tdStyle, textAlign: "center", width: 44 }}>
-                          <input type="checkbox" checked={isSelected} onChange={() => handleSelect(t.id)}
+                        <td style={{ padding: "11px 14px", textAlign: "center", width: 44 }}>
+                          <input type="checkbox" checked={isSelected} onChange={() => handleSelect(t)}
                             style={{ width: 16, height: 16, cursor: "pointer", accentColor: C.primaryLight }} />
                         </td>
-                        <td style={tdStyle}>
-                          <button onClick={() => setDrawerTxn(t)} style={{
-                            background: "none", border: "none", cursor: "pointer",
-                            color: C.primaryLight, fontWeight: 600, fontSize: 12,
-                            fontFamily: "'JetBrains Mono', monospace", padding: 0,
-                            textDecoration: "none",
-                          }}
-                            onMouseEnter={e => e.currentTarget.style.textDecoration = "underline"}
-                            onMouseLeave={e => e.currentTarget.style.textDecoration = "none"}
-                          >
-                            {t.id}
-                          </button>
-                        </td>
-                        <td style={tdStyle}>
-                          <span style={{
-                            fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 5,
-                            background: `${t.sourceColor}14`, color: t.sourceColor,
-                            border: `1px solid ${t.sourceColor}30`, whiteSpace: "nowrap",
-                          }}>
-                            {t.sourceLabel}
-                          </span>
-                        </td>
-                        <td style={{ ...tdStyle, fontSize: 12.5 }}>{t.entityType}</td>
-                        <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5 }}>{t.entityKey}</td>
-                        <td style={tdStyle}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ width: 50, height: 6, borderRadius: 3, background: "#E2E8F0", overflow: "hidden" }}>
-                              <div style={{
-                                width: `${t.score}%`, height: "100%", borderRadius: 3,
-                                background: t.score >= 86 ? "#DC2626" : t.score >= 61 ? "#F59E0B" : t.score >= 31 ? "#3B82F6" : "#94A3B8",
-                              }} />
-                            </div>
-                            <span style={{
-                              fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
-                              background: sevCfg.bg, color: sevCfg.color, border: `1px solid ${sevCfg.border}`,
-                              fontFamily: "'JetBrains Mono', monospace",
-                            }}>
-                              {t.score}
-                            </span>
-                            <span style={{ fontSize: 10, color: sevCfg.color, fontWeight: 600 }}>{t.severity}</span>
+                        <td style={{ padding: "11px 14px", fontWeight: 600, color: C.primaryLight, fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5 }}>{t.id}</td>
+                        <td style={{ padding: "11px 14px" }}><div style={{ fontSize: 12.5, fontWeight: 500, color: C.text }}>{t.customerName}</div><div style={{ fontSize: 10.5, color: C.textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>{t.customerNo}</div></td>
+                        <td style={{ padding: "11px 14px", fontSize: 12.5, color: C.text }}>{t.entityType}</td>
+                        <td style={{ padding: "11px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.text }}>{t.entityKey}</td>
+                        <td style={{ padding: "11px 14px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ width: 30, height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}><div style={{ width: `${t.score}%`, height: "100%", borderRadius: 3, background: sevStyle.color }} /></div>
+                            <span style={{ fontSize: 11.5, fontWeight: 600, color: sevStyle.color, fontFamily: "'JetBrains Mono', monospace" }}>{t.score}</span>
                           </div>
                         </td>
-                        <td style={tdStyle}>
-                          <span style={{
-                            fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 5,
-                            background: markCfg.bg, color: markCfg.color, border: `1px solid ${markCfg.border}`,
-                            whiteSpace: "nowrap",
-                          }}>
-                            {t.markStatus}
-                          </span>
+                        <td style={{ padding: "11px 14px" }}><Badge config={statusStyle} /></td>
+                        <td style={{ padding: "11px 14px", fontSize: 12, color: C.textSecondary }}>{t.createDate}</td>
+                        <td style={{ padding: "11px 14px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, fontWeight: 600, color: sevStyle.color }}>
+                          {formatCurrency(displayAmount, displayCurr)}
+                          {displayCurrency === "original" && <div style={{ fontSize: 9.5, color: C.textSecondary, fontWeight: 400 }}>{t.currency}</div>}
                         </td>
-                        <td style={{ ...tdStyle, fontSize: 12, color: C.textSecondary, whiteSpace: "nowrap" }}>{t.createDate}</td>
-                        <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
-                          {displayCurrency === "original" ? (
-                            <span style={{ fontWeight: 600, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}>
-                              {formatCurrency(t.amount, t.currency)}
-                            </span>
-                          ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                              <span style={{ fontWeight: 600, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}>
-                                {formatCurrency(convertAmount(t.amount, t.currency, displayCurrency), displayCurrency)}
-                              </span>
-                              {t.currency !== displayCurrency && (
-                                <span style={{ fontSize: 10.5, color: C.textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>
-                                  ({formatCurrency(t.amount, t.currency)})
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </td>
+                        <td style={{ padding: "11px 14px", textAlign: "center" }} onClick={() => setDrawerTxn(t)}><div style={{ color: C.primaryLight, opacity: 0.5 }}><Icons.Eye /></div></td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
+              );
+            })()}
 
             {/* Pagination */}
             <div style={{
@@ -998,7 +753,7 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}>
               <span style={{ fontSize: 12, color: C.textSecondary }}>
-                {(page - 1) * perPage + 1}–{Math.min(page * perPage, sorted.length)} / {sorted.length} işlem gösteriliyor
+                {(page - 1) * perPage + 1}–{Math.min(page * perPage, totalCount)} / {totalCount} işlem gösteriliyor
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
@@ -1174,8 +929,8 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
                   style={inputStyle}>
                   <option value="">Unassigned (Atanmamış)</option>
                   {isManager
-                    ? ACTIVE_USERS.map(u => <option key={u.id} value={u.id}>{u.name} — {u.role}</option>)
-                    : <option value={user.id}>{user.name} (Kendime Ata)</option>
+                    ? ACTIVE_USERS.map(u => <option key={u.id} value={u.name}>{u.name} — {u.role}</option>)
+                    : <option value={user.name}>{user.name} (Kendime Ata)</option>
                   }
                 </select>
                 <span style={{ fontSize: 11, color: C.textSecondary, marginTop: 4, display: "block" }}>
@@ -1334,18 +1089,22 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
             </div>
 
             {/* Modal Footer */}
-            <div style={{ padding: "16px 28px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 10, background: "#F8FAFC" }}>
-              <button onClick={() => { setShowCreateModal(false); setParentSearchQuery(""); }} style={{
+            <div style={{ padding: "16px 28px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, background: "#F8FAFC", flexWrap: "wrap" }}>
+              {formErrors.txns && (
+                <span style={{ ...errStyle, marginTop: 0, marginRight: "auto" }}>{formErrors.txns}</span>
+              )}
+              <button onClick={() => { setShowCreateModal(false); setParentSearchQuery(""); setFormErrors({}); }} style={{
                 padding: "10px 20px", borderRadius: 8, border: `1px solid ${C.border}`,
                 background: "#fff", color: C.textSecondary, fontSize: 13, fontWeight: 600,
                 cursor: "pointer",
               }}>İptal</button>
-              <button onClick={handleCreateCase} style={{
+              <button onClick={handleCreateCase} disabled={submitting} style={{
                 padding: "10px 24px", borderRadius: 8, border: "none",
-                background: "linear-gradient(135deg, #1E40AF, #2563EB)", color: "#fff",
-                fontSize: 13, fontWeight: 600, cursor: "pointer",
-                boxShadow: "0 4px 14px rgba(30,64,175,0.3)",
-              }}>Oluştur</button>
+                background: submitting ? "#94A3B8" : "linear-gradient(135deg, #1E40AF, #2563EB)", color: "#fff",
+                fontSize: 13, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer",
+                boxShadow: submitting ? "none" : "0 4px 14px rgba(30,64,175,0.3)",
+                opacity: submitting ? 0.8 : 1,
+              }}>{submitting ? "Oluşturuluyor..." : "Oluştur"}</button>
             </div>
           </div>
         </>
@@ -1393,13 +1152,6 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
 }
 
 // ─── Shared Styles ───
-const thStyle = {
-  padding: "10px 14px", textAlign: "left", fontWeight: 600,
-  color: "#64748B", fontSize: 11, letterSpacing: "0.04em",
-  textTransform: "uppercase", borderBottom: "1px solid #E2E8F0",
-  whiteSpace: "nowrap", position: "sticky", top: 0, background: "#F8FAFC",
-};
-const tdStyle = { padding: "12px 14px" };
 const pgBtn = {
   width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0",
   background: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
@@ -1414,12 +1166,3 @@ const inputStyle = {
   outline: "none", color: "#0F172A", boxSizing: "border-box",
 };
 const errStyle = { fontSize: 11, color: "#DC2626", marginTop: 4, display: "block" };
-const colSearchInput = {
-  width: "100%", padding: "5px 8px", borderRadius: 5,
-  border: "1px solid #E2E8F0", fontSize: 11.5, background: "#fff",
-  outline: "none", color: "#0F172A", boxSizing: "border-box",
-  fontWeight: 400, letterSpacing: "0",
-};
-const colSearchTh = {
-  padding: "0 8px 8px", borderBottom: "2px solid #E2E8F0",
-};

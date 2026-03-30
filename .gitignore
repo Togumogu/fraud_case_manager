@@ -1,0 +1,7 @@
+node_modules/
+scm-app/dist/
+*.db
+*.db-shm
+*.db-wal
+scm-api/uploads/
+.env

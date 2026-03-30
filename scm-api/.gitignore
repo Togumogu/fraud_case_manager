@@ -1,0 +1,4 @@
+node_modules/
+db/fdm.db
+db/scm.db
+uploads/

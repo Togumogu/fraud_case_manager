@@ -1,0 +1,81 @@
+/* ═══════════════════════════════════════════════════════════
+   SADE SCM — Badge
+═══════════════════════════════════════════════════════════ */
+
+.scm-badge {
+  display: inline-block;
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  line-height: 1.4;
+  background: var(--color-bg-app);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+/* ── Size variants ───────────────────────────────────────── */
+.scm-badge--sm { padding: 2px 7px;   font-size: var(--text-xs); }
+.scm-badge--md { padding: 3px 10px;  font-size: var(--text-sm); }
+.scm-badge--lg { padding: 5px 14px;  font-size: var(--text-base); }
+
+/* ── Severity ────────────────────────────────────────────── */
+.scm-badge--critical {
+  background:   var(--badge-critical-bg);
+  color:        var(--badge-critical-color);
+  border-color: var(--badge-critical-border);
+}
+.scm-badge--high {
+  background:   var(--badge-high-bg);
+  color:        var(--badge-high-color);
+  border-color: var(--badge-high-border);
+}
+.scm-badge--medium {
+  background:   var(--badge-medium-bg);
+  color:        var(--badge-medium-color);
+  border-color: var(--badge-medium-border);
+}
+.scm-badge--low {
+  background:   var(--badge-low-bg);
+  color:        var(--badge-low-color);
+  border-color: var(--badge-low-border);
+}
+
+/* ── Case status ─────────────────────────────────────────── */
+.scm-badge--open {
+  background:   var(--badge-open-bg);
+  color:        var(--badge-open-color);
+  border-color: var(--badge-open-border);
+}
+.scm-badge--closed {
+  background:   var(--badge-closed-bg);
+  color:        var(--badge-closed-color);
+  border-color: var(--badge-closed-border);
+}
+.scm-badge--pending {
+  background:   var(--badge-pending-bg);
+  color:        var(--badge-pending-color);
+  border-color: var(--badge-pending-border);
+}
+
+/* ── Mark status ─────────────────────────────────────────── */
+.scm-badge--marked {
+  background:   var(--badge-marked-bg);
+  color:        var(--badge-marked-color);
+  border-color: var(--badge-marked-border);
+}
+.scm-badge--unmarked {
+  background:   var(--badge-unmarked-bg);
+  color:        var(--badge-unmarked-color);
+  border-color: var(--badge-unmarked-border);
+}
+.scm-badge--assigned {
+  background:   var(--badge-assigned-bg);
+  color:        var(--badge-assigned-color);
+  border-color: var(--badge-assigned-border);
+}
+.scm-badge--review {
+  background:   var(--badge-review-bg);
+  color:        var(--badge-review-color);
+  border-color: var(--badge-review-border);
+}

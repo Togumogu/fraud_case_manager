@@ -1,0 +1,1908 @@
+**SADE Vaka Yöneticisi (SCM)**
+
+Teknik Spesifikasyon Dokümanı
+
+*Fraud Vaka Yönetimi & SAS Alert Triage Entegrasyonu*
+
+  -----------------------------------------------------------------------
+  **Doküman Versiyonu**                     9.0
+  ----------------------------------------- -----------------------------
+  **Tarih**                                 Şubat 2026
+
+  **Hazırlayan**                            Toygun Baysal
+
+  **Gizlilik**                              Gizli
+
+  **Durum**                                 Taslak
+  -----------------------------------------------------------------------
+
+# 1. Yönetici Özeti
+
+Bu doküman, SAS Alert Triage (SFD) ile entegre çalışacak şekilde
+tasarlanan SADE Vaka Yöneticisi (SCM) fraud soruşturma vaka yönetim
+platformunun teknik spesifikasyonunu tanımlamaktadır. SCM, bankanın
+fraud analistleri için birincil araç olarak hizmet edecek; yükseltilmiş
+işlemleri almalarına, şüpheli işlemleri soruşturmalarına, soruşturma
+vakalarını yönetmelerine ve denetime hazır karar kayıtları üretmelerine
+olanak tanıyacaktır.
+
+## 1.1 Proje Bağlamı
+
+SAS Alert Triage şu anda gerçek zamanlı fraud skorlama ve işlem tespiti
+işlemlerini yürütmektedir. Ancak vaka oluşturmadan karar verme ve
+raporlamaya kadar uzanan soruşturma iş akışı, amacına özel bir vaka
+yönetim sistemi gerektirmektedir. SCM, paylaşılan Fraud Datamart'tan
+(FDM) işlem verilerini salt okunur olarak okuyan, soruşturma süreçlerini
+ve kararlarını kendi şemasında (scm) saklayan bağımsız bir soruşturma
+ortamı sağlayarak bu boşluğu doldurmaktadır. SCM, FDM'e veya SAS SFD'ye
+herhangi bir veri yazmaz; tüm karar ve durum bilgisi yalnızca SCM'nin
+kendi veritabanında tutulur.
+
+## 1.2 Temel Tasarım İlkeleri
+
+-   Alan Odaklı (Domain-Driven): Çok alanlı mimari (Payment Fraud,
+    Credit Card Fraud, Application Fraud, Internal Fraud) ile alan
+    kapsamında erişim kontrolü.
+
+-   Olay Tabanlı Veri: İşlem verileri Kafka ve CDC boru hatları
+    üzerinden FDM\'ye akar; SCM, FDM\'den okur.
+
+-   Vaka Merkezli Model: SCM\'de bağımsız alarm triyajı yapılmaz; Alert
+    Triage\'den gelen işaretlenmiş işlemler ve tüm işlemler İşlem
+    Yönetimi ekranında değerlendirilir, soruşturma vakalar üzerinden
+    yürütülür.
+
+-   Modüler ve Genişletilebilir: Eklenti tarzı alan modülleri, çekirdek
+    platformda değişiklik yapılmadan yeni soruşturma türlerinin
+    eklenmesine olanak tanır.
+
+-   Sorumluluk Ayrımı: SCM vaka yaşam döngüsüne ve soruşturma
+    kararlarına sahiptir; FDM işlem ve tespit ana verilerine sahiptir
+    (salt okunur); SFD algılama ve skorlamaya sahiptir. SCM, FDM veya
+    SFD'ye hiçbir yazışma yapmaz.
+
+# 2. Sistem Mimarisi Genel Bakış
+
+## 2.1 Üst Düzey Bileşen Haritası
+
+Sistem, dört ana katmandan oluşmaktadır:
+
+  ------------------------------------------------------------------------
+  **Katman**   **Bileşen**    **Açıklama**
+  ------------ -------------- --------------------------------------------
+  BOSS Katmanı TRX Response   Bankanın orkestrasyon katmanından gelen
+               Kafka          işlem yanıt verilerini Kafka topic\'e yazar.
+               Publisher      
+
+  BOSS Katmanı Kafka-FDM      Kafka mesajlarını tüketir, JSON formatındaki
+               Adapter        işlem verilerini FDM REST API\'ye iletir.
+
+  BOSS Katmanı SFD CDC        SFD veritabanındaki tespit değişikliklerini
+               (Change Data   okur, JSON formatında FDM API\'ye gönderir.
+               Capture)       
+
+  Fraud        FDM API (REST) İşlem, kural ve zenginleştirme verilerini
+  Datamart                    alır ve ilişkisel datamart\'a yazar.
+  (FDM)                       
+
+  Fraud        FDM Veritabanı Tüm fraud ile ilgili verilerin merkezi
+  Datamart     (PostgreSQL)   deposu: işlemler, kurallar, varlıklar.
+  (FDM)                       
+
+  Vaka         CM Web UI      Fraud analistleri, yöneticiler ve adminler
+  Yöneticisi   (Vue.js)       için tek sayfa uygulaması (SPA).
+  (SCM)                       
+
+  Vaka         CM API (REST)  Vaka CRUD, işlem ilişkilendirme, raporlama,
+  Yöneticisi                  arama ve kullanıcı yönetimi için arka uç
+  (SCM)                       servisleri.
+
+  Vaka         CM Güvenlik    KeyCloak tarafından verilen OIDC token'ı
+  Yöneticisi   Modülü         doğrular ve alan kapsamında rol tabanlı
+  (SCM)                       yetkilendirme uygular. Kimlik doğrulama
+                              (authentication) tamamen KeyCloak'a
+                              devredilmiştir; SCM yalnızca yetkilendirme
+                              (authorization) yapar.
+
+  Dış Sistem   Kimlik         OIDC uyumlu kimlik sağlayıcı (KeyCloak). Tüm
+               Doğrulama      kimlik doğrulama (kullanıcı adı/parola, LDAP
+               (XC1)          bind, OTP, şifre sıfırlama, brute force
+                              koruması, oturum yönetimi) bu katmanda
+                              gerçekleşir. SCM hiçbir authentication
+                              işlemi yapmaz.
+
+  Dış Sistem   Kafka (XC2)    Asenkron ve dayanıklı veri boru hatları için
+                              mesaj aracısı.
+  ------------------------------------------------------------------------
+
+## 2.2 Veri Akış Mimarisi
+
+  ------------------------------------------------------------------------
+  **Adım**   **Akış**       **Açıklama**
+  ---------- -------------- ----------------------------------------------
+  1          Banka          Gerçek zamanlı işlem isteği fraud skorlaması
+             Çekirdeği →    için SAS\'a gönderilir.
+             SAS SFD        
+
+  2          SAS SFD → BOSS SAS, tetiklenen kurallar ve fraud tespiti ile
+                            birlikte skorlanmış yanıtı döner.
+
+  3          BOSS → Kafka   BOSS, tam işlem yanıtını bir Kafka topic\'e
+             Topic          yazar.
+
+  4          Kafka → FDM    Adapter Kafka\'dan okur, JSON\'u dönüştürür ve
+             Adapter → FDM  FDM API\'ye POST eder.
+             API            
+
+  5          SFD DB → CDC → CDC, SFD\'nin dahili veritabanından tespit
+             FDM API        yaşam döngüsü değişikliklerini yakalar.
+
+  6          FDM API → FDM  FDM Domain Service JSON\'u ayrıştırır ve
+             DB             ilişkisel tablolara yazar.
+
+  7          SCM UI → SCM   Analistler SCM arayüzünü kullanır. SCM, işlem
+             API → SCM DB   verilerini FDM'den salt okunur olarak okur;
+             (FDM DB salt   vaka kayıtları, yorumlar, ekler ve işlem
+             okunur)        işaretlemeleri yalnızca SCM'nin kendi şemasına
+                            (scm) yazılır. FDM'e veya SFD'ye hiçbir veri
+                            geri yazılmaz.
+  ------------------------------------------------------------------------
+
+# 3. Veri Modeli ve Şema Tasarımı
+
+## 3.1 Şema Sahipliği
+
+Sistem iki ayrı PostgreSQL şeması kullanır:
+
+-   fdm şeması (Fraud Datamart): Tüm işlem, tespit (alert), varlık ve
+    kural verilerine sahiptir. SCM açısından salt okunurdur.
+
+-   scm şeması (Vaka Yöneticisi): Vaka yaşam döngüsü verilerine
+    sahiptir: Case, Case_Transaction, Case_Relationship, Yorumlar,
+    Ekler, İlgili Kişiler, Transaction Marking, User, Role, Domain,
+    Config tabloları.
+
+## 3.2 Temel Tablolar
+
+  -----------------------------------------------------------------------------
+  **Tür**   **Tablo**           **Anahtar Sütunlar**             **Veri
+                                                                 Kaynağı**
+  --------- ------------------- -------------------------------- --------------
+  fact      Transaction         id, time, type_code, party_no,   BOSS / Kafka
+                                customer_no, request_data        
+                                (JSON), response_data (JSON),    
+                                amount, currency_code,           
+                                amount_lc, ip_addr               
+
+  fact      Alert_Event         id, time, source, entity_type,   SFD DR (Kafka)
+                                entity_key, trigger_tran_id,     
+                                severity, score, enhanced_data   
+                                (JSON)                           
+
+  dim       Alert               id, alert_event_id, create_ts,   SFD DB (CDC)
+                                severity, status_code,           
+                                first_analyse_ts/user_id,        
+                                close_ts/user_id, close_type     
+
+  dim       Customer            customer_no, name, phone, email, SFD / Kafka
+                                address                          
+
+  dim       Account             account_no, customer_no,         SFD / Kafka
+                                balance, currency, status        
+
+  dim       Card                card_no (masked), card_type,     SFD / Kafka
+                                expiry, status, customer_no      
+
+  scm       Case                id, name, status, domain_id,     SCM
+                                severity, owner_user_id,         (kullanıcı)
+                                parent_case_id (FK, nullable),   
+                                create_ts, update_ts, close_ts,  
+                                close_reason                     
+
+  scm       Case_Transaction    case_id, tran_id, added_ts,      SCM
+                                added_by                         (kullanıcı)
+
+  scm       Case_Relationship   id, case_id_a (FK), case_id_b    SCM
+                                (FK), relationship_type          (kullanıcı)
+                                (PARENT_CHILD / SIBLING),        
+                                created_by, created_ts           
+
+  scm       Tran_Marking        case_id, tran_id, is_fraud,      FDM (salt
+                                fraud_amount, bank_share,        okunur,
+                                customer_share, currency_code,   upstream
+                                marked_by, marked_ts             sistemlerden
+                                                                 beslenir)
+
+  scm       Case_Comment        id, case_id, user_id, content,   SCM
+                                create_ts                        (kullanıcı)
+
+  scm       Case_Attachment     id, case_id, filename,           SCM
+                                file_path, file_size, user_id,   (kullanıcı)
+                                create_ts                        
+
+  scm       User                id, name, email, ldap_dn,        Admin / LDAP /
+                                keycloak_user_id, role_id,       KeyCloak API
+                                domain_id, status, created_by,   
+                                approved_by                      
+
+  scm       Approval_Request    id, request_type, entity_id,     SCM (sistem)
+                                requested_by, requested_ts,      
+                                status, reviewed_by,             
+                                reviewed_ts, review_comment      
+
+  scm       System_Setting      setting_key, setting_value,      Admin
+                                updated_by, updated_ts           
+
+  scm       User_Activity       id, user_id, action_type,        SCM (sistem)
+                                entity_type, entity_id,          
+                                before_val, after_val, action_ts 
+  -----------------------------------------------------------------------------
+
+## [İlk versiyonda olacak mı? Olacaksa, SFD'den ilgili currencye göre gelmesi mi gerekir ya da TCMB'den ISO standardına göre kur çeken bir servis mi çağrılmalı?]{.comment-start id="10" author="Toygun Baysal" date="2026-02-18T21:10:00Z"}3.3 Para Birimi Desteği (Çok Para Birimi)[]{.comment-end id="10"}
+
+Sistem birden fazla para birimini destekler. Tran_Marking tablosundaki
+currency_code alanı ISO 4217 standardını kullanır. MVP kapsamında
+aşağıdaki para birimleri desteklenmelidir:
+
+-   TRY (Türk Lirası): varsayılan
+
+-   USD (ABD Doları)
+
+-   EUR (Euro)
+
+Transaction tablosundaki amount_lc alanı, farklı para birimlerindeki
+tutarları yerel para birimine (TRY) dönüştürülmüş şekilde saklar. Döviz
+kuru tablosu System_Setting üzerinden yapılandırılır veya dış bir kur
+servisinden çekilir.
+
+# 4. Ekran Spesifikasyonları: Alan, Yerleşim ve Kontroller
+
+Bu bölüm, her SCM ekranını; içerdiği alanlar, yerleşim düzeni, saha
+kontrolleri (validasyonlar) ve işlem süreçleri ile birlikte ayrıntılı
+biçimde tanımlamaktadır. Tüm ekranlar Vue.js 3 SPA mimarisinde
+geliştirilecek ve sabit sol kenar menüsü ile üst başlık çubuğu
+içerecektir.
+
+## 4.1 Genel Sayfa Düzeni (Global Layout)
+
+Tüm sayfalarda aşağıdaki temel yapı korunur:
+
+  -----------------------------------------------------------------------
+  **Alan**       **Açıklama**
+  -------------- --------------------------------------------------------
+  Sol Kenar Menü 240 px genişliğinde. Logo, versiyon, navigasyon
+  (Sidebar)      linkleri, kullanıcı profili ve dil seçici içerir.
+                 Collapse edilebilir (ikonlara indirgenir).
+
+  Sol Menü       Dashboard (Ana Sayfa), Transaction Management (İşlem
+  Öğeleri        Yönetimi), Cases (Vakalar), My Cases (Vakalarım),
+                 Reports (Raporlar), User Management (Kullanıcı Yönetimi,
+                 yalnızca Yönetici ve Admin), Settings (Ayarlar, yalnızca
+                 Admin). My Cases ekranı içinde üç sekme (pane) bulunur:
+                 \"Vakalarım\" (kendi oluşturduğum vakalar),
+                 \"İncelemem için Gönderilenler\" (review için bana
+                 atanmış vakalar) ve \"Onay Bekleyenler\" (Maker-Checker
+                 açık olduğunda, vaka kapatma onay istekleri; yalnızca
+                 Yönetici ve Admin). Kullanıcı oluşturma onay istekleri
+                 ise Kullanıcı Yönetimi ekranı altında ayrı bir \"Onay
+                 Bekleyenler\" panelinde görünür (yalnızca Yönetici ve
+                 Admin, Maker-Checker açık olduğunda).
+
+  Üst Başlık     Tüm sayfalarda sabit (pinned) olarak görünen üst bar. Üç
+  (Global -- Tüm bölümden oluşur: (1) Sol: Sayfa başlığı ve kısa
+  Sayfalarda     açıklaması. Her sayfada dinamik olarak değişir (ör.
+  Sabit)         "Dashboard", "İşlem Yönetimi", "Vaka Detayı -- #12345").
+                 (2) Orta-Sağ: SLA Uyarı İkonu -- Kullanıcının atandığı
+                 vakalarda SLA süresi aşılmışsa ikon aktif
+                 (kırmızı/turuncu) olur. Tıklandığında SLA ihlali olan
+                 vakaların listesini dropdown/panel olarak gösterir. Her
+                 satırda Vaka ID, aşım süresi bilgisi yer alır ve
+                 tıklandığında ilgili vakaya yönlendirir. SLA ihlali
+                 yoksa ikon pasif (gri) kalır. (3) Sağ üst köşe: Bildirim
+                 Zili -- Okunmamış bildirim sayısını gösteren kırmızı
+                 rozet içerir. Tıklandığında bildirim listesi panel
+                 olarak açılır.
+
+  İçerik Alanı   Kalan tüm sayfa alanı. Ekrana göre değişen içerik burada
+                 render edilir.
+  -----------------------------------------------------------------------
+
+## 4.2 Giriş (Login) Ekranı
+
+### Mimari Yaklaşım: Tüm Authentication KeyCloak'ta
+
+SCM, kimlik doğrulama (authentication) işlemlerinin hiçbirini kendi
+üzerine almaz. Tüm authentication akışı KeyCloak tarafından yönetilir.
+SCM yalnızca KeyCloak'tan dönen OIDC token'ı doğrular ve token içindeki
+rol/alan bilgilerine göre yetkilendirme (authorization) yapar.
+
+Bu yaklaşımla aşağıdaki sorumluluklar tamamen KeyCloak'a devredilmiştir:
+
+-   Kullanıcı adı / parola doğrulama (LDAP bind veya yerel veritabanı).
+
+-   OTP / ikinci faktör doğrulama (KeyCloak Authentication Flow ile).
+
+-   Şifremi unuttum / parola sıfırlama (KeyCloak Reset Credentials).
+
+-   Başarısız giriş sayacı ve hesap kilitleme (KeyCloak Brute Force
+    Detection).
+
+-   Oturum süresi ve timeout yönetimi (KeyCloak Session Management).
+
+-   LDAP kullanıcısı / yerel kullanıcı kaynağı tespiti (KeyCloak User
+    Federation).
+
+### Giriş Akışı
+
+-   Kullanıcı SCM adresine gider. SCM frontend, kullanıcıyı KeyCloak'ın
+    OIDC Authorization Endpoint'ine yönlendirir (HTTP 302 redirect).
+
+-   KeyCloak kendi login sayfasını gösterir. LDAP-Only modu, karma mod
+    (LDAP + yerel), OTP gerekliliği, parola politikaları gibi tüm
+    ayarlar KeyCloak Realm konfigürasyonunda yapılandırılır.
+
+-   Kullanıcı kimlik bilgilerini KeyCloak login sayfasında girer.
+    KeyCloak, LDAP veya yerel veritabanı üzerinden doğrulama yapar.
+
+-   KeyCloak, gerekli durumlarda OTP doğrulamasını kendi akışında
+    (Required Actions / Authentication Flow) uygular.
+
+-   Başarısız giriş denemelerinde KeyCloak kendi Brute Force Detection
+    mekanizmasıyla hesabı kilitler.
+
+-   Şifremi unuttum / parola sıfırlama işlemleri KeyCloak'ın kendi
+    sayfasında gerçekleşir.
+
+-   Başarılı doğrulama sonrası KeyCloak, authorization code ile
+    kullanıcıyı SCM callback URL'ine yönlendirir.
+
+-   SCM backend, authorization code'u KeyCloak Token Endpoint'e
+    göndererek access_token ve id_token alır.
+
+-   SCM, token içindeki claim'lerden kullanıcı bilgilerini (ad, e-posta,
+    roller, alan, kullanıcı kaynağı) okur ve yetkilendirme yapar.
+
+-   Token geçerliyse ve kullanıcı SCM'de yetkiliyse Dashboard'a
+    yönlendirilir.
+
+### KeyCloak Token'ından Okunan Bilgiler
+
+SCM'nin yetkilendirme için ihtiyaç duyduğu bilgiler KeyCloak token'ına
+custom claim olarak eklenir:
+
+  ---------------------------------------------------------------------------
+  **Claim Adı**        **Tip**      **Açıklama**
+  -------------------- ------------ -----------------------------------------
+  preferred_username   String       Kullanıcı adı.
+
+  email                String       Kullanıcı e-posta adresi.
+
+  name                 String       Kullanıcının tam adı.
+
+  scm_role             String       SCM içindeki rol (fraud_analyst,
+                                    reviewer, manager, admin).
+
+  scm_domain           String\[\]   Kullanıcının erişim yetkisi olan
+                                    alan(lar).
+
+  user_source          String       Kullanıcı kaynağı: "ldap" veya "local".
+                                    KeyCloak User Federation'dan otomatik
+                                    doldurulur.
+  ---------------------------------------------------------------------------
+
+### Oturum Yönetimi
+
+-   Oturum süresi ve idle timeout KeyCloak Realm ayarlarından
+    yapılandırılır. SCM bu değerleri kendi bünyesinde tutmaz.
+
+-   SCM frontend, token'ın süresini izler. Token süresi dolmadan önce
+    KeyCloak Refresh Token Endpoint ile yenileme yapar (silent refresh).
+
+-   Refresh token da süresi dolmuşsa kullanıcı otomatik olarak KeyCloak
+    login sayfasına yönlendirilir.
+
+-   Çıkış (logout) işlemi KeyCloak OIDC Logout Endpoint üzerinden
+    yapılır; bu sayede tüm aktif oturumlar (single sign-out)
+    sonlandırılır.
+
+### SCM'nin Bu Alanda Yapmaması Gerekenler
+
+-   SCM kendi login formu sunmaz; kullanıcıyı KeyCloak'a yönlendirir.
+
+-   SCM parola doğrulama, parola sıfırlama, OTP üretme/doğrulama yapmaz.
+
+-   SCM başarısız giriş sayacı tutmaz, hesap kilitleme uygulamaz.
+
+-   SCM oturum süresi sayacı tutmaz; token geçerliliğine güvenir.
+
+## 4.3 Dashboard (Ana Sayfa) Ekranı
+
+Başarılı giriş sonrası kullanıcının karşılaştığı ilk sayfadır (landing
+page). Rolü ne olursa olsun tüm kullanıcılar bu sayfayı görür, ancak
+görünen kart ve widget'lar role göre değişir. Dashboard'ın amacı,
+kullanıcıya o anki sorumluluk alanının özetini sunmak ve hızlıca ilgili
+ekrana yönlendirmektir.
+
+### Hoş Geldiniz Bantı
+
+Dashboard'ın üst kısmında kullanıcıya özel karşılama alanı yer alır:
+
+-   **Hoş Geldiniz:** "Günaydın, \[Kullanıcı Adı\]" -- tarih ve son
+    giriş saati gösterilir.
+
+**Not:** SLA uyarıları artık global üst başlıktaki SLA Uyarı İkonu
+üzerinden tüm sayfalarda gösterilir. Dashboard'a özel ayrı bir SLA bantı
+yoktur.
+
+### Satır 1: KPI Özet Kartları
+
+Tüm roller ve domain kapsamında görünen özet bilgi kartlarıdır. Her kart
+tıklanabilir ve ilgili sayfaya yönlendirir:
+
+-   **Toplam Vaka (Total Cases):** Sistemdeki tüm vakaların toplam
+    sayısı. Altında \"bu hafta eklenen\" miktarı gösterilir. Tıklayınca
+    Vaka Listesi ekranına yönlendirir.
+
+-   **Açık Vakalar (Open Cases):** Aktif soruşturmadaki vakaların
+    sayısı. Tıklayınca status=Open filtreli Vaka Listesi'ne yönlendirir.
+
+-   **Kapatılan Vakalar (Closed Cases):** Kapatılmış vakaların toplam
+    sayısı. Altında \"bu ay kapatılan\" sayısı gösterilir.
+
+-   **Vakalarım (My Cases):** Giriş yapan kullanıcıya atanmış vakaların
+    sayısı. Tıklayınca My Cases ekranına yönlendirir.
+
+-   **Bekleyen İşlemler:** Henüz vakaya eklenmemiş, işaretlenmiş
+    işlemlerin sayısı. Tıklayınca İşlem Yönetimi ekranına yönlendirir.
+
+-   **Review'da Bekleyenler (Pending Review):** Başka bir kullanıcı
+    tarafından mevcut kullanıcıya inceleme (review) için gönderilmiş
+    vakaların sayısı. Review, vaka sistemi içindeki informal bir eş
+    değerlendirme (peer review) mekanizmasıdır; Maker-Checker yapısından
+    bağımsızdır. Review'a gönderme vakayı statüsünü değiştirmez; vaka
+    Open statüsünde kalmaya devam eder. Review tamamlanması vaka kapatma
+    için zorunlu değildir; ancak review istekleri ve cevapları denetim
+    izine (audit trail) kaydedilir. Review'a gönderildiğinde hedef
+    kullanıcıya bildirim gider. Bu kart tüm roller için görünür.
+    Tıklayınca My Cases ekranının "İncelemem için Gönderilenler"
+    sekmesine yönlendirir.
+
+### Satır 2: Durum ve İzleme Panelleri
+
+-   **Kritik İşlemler:** FDM'den gelen yüksek öncelikli, henüz vakaya
+    eklenmemiş işaretlenmiş işlemler. Her satırda işlem özeti (entity
+    tipi, entity ID, saat) ve domain bilgisi görünür. Tıklayınca İşlem
+    Yönetimi ekranında filtrelenerek açılır.
+
+-   **Vakalarım Paneli:** Giriş yapan analistin üzerindeki son 5 vakanın
+    özet kartı (Case ID, Case Name, Status, süre, tutar bilgisi).
+    Tıklayınca Vaka Detayı ekranına yönlendirir.
+
+-   **Domain Dağılımı:** Vakaların domain bazında yüzdelik dağılımı
+    (Payment Fraud, Card Fraud, App Fraud, Internal Fraud vb.) ve her
+    domain için SLA uyum oranı (progress bar ile gösterilir).
+
+### Satır 3: Analiz ve Yönetim Panelleri
+
+-   **Son Aktiviteler:** Sistemdeki son hareketlerin kronolojik listesi.
+    User_Activity tablosundan beslenir. Her satırda: Kim, Ne yaptı,
+    Hangi vaka ve ne zaman bilgisi görünür. Analist kendi aktivitelerini
+    görür; Yönetici tüm ekibin aktivitelerini görür. Örnek aktiviteler:
+    vaka oluşturma, vaka kapatma onayı, vaka atama, yorum ekleme.
+
+-   **Onay Bekleyenler (Yalnızca Yönetici/Admin):** Maker-Checker açık
+    olduğunda görünen panel. Bekleyen onay isteklerinin özet
+    kartları: (1) Vaka Kapatma talepleri -- Case ID, talep eden, neden
+    ve onayla/reddet butonları. (2) Vaka Arşivleme talepleri -- Case ID,
+    talep eden ve onayla/reddet butonları (maker_checker_enabled
+    ayarından bağımsız olarak her zaman görünür). (3) Kullanıcı
+    Oluşturma talepleri -- kullanıcı adı, rol, domain ve onayla/reddet
+    butonları. En eski isteğin tarihi ve talep eden bilgisi vurgulanır.
+    \"Kendi isteğinizi onaylayamazsınız\" kuralı geçerlidir.
+
+-   **Atanmamış Vakalar (Yalnızca Yönetici):** Henüz hiçbir analiste
+    atanmamış son 5 vakanın listesi (Case ID, Ad, Tarih, Önem derecesi
+    rozeti). Yönetici doğrudan \"Ata\" butonu ile dropdown'dan analist
+    seçerek atama yapabilir. Analist ise \"Üstüme Al\" butonu ile vakayı
+    kendi üzerine alabilir.
+
+### Fraud Tutar Özeti ve İşaretleme İstatistikleri
+
+-   **Bu Ay İşaretlenen Tutar:** FDM'den gelen tran_marking verisinden
+    beslenen, bu ay fraud olarak işaretlenen işlemlerin toplam tutarı.
+    Para birimi bazında (TRY / USD / EUR) ayrıştırılır.
+
+### Role Göre Görünürlük
+
+Aşağıdaki tablo, Dashboard bileşenlerinin role göre görünürlüğünü
+özetler:
+
+-   **Analist:** KPI kartları (Toplam Vaka, Açık Vakalar, Kapatılan
+    Vakalar, Vakalarım, Bekleyen İşlemler, Review'da Bekleyenler),
+    Kritik İşlemler, Vakalarım paneli, Son Aktiviteler (kendi), Domain
+    Dağılımı, Fraud Tutar Özeti, Atanmamış Vakalar (Üstüme Al butonu
+    ile).
+
+-   **Yönetici:** Yukarıdakilere ek olarak: Son Aktiviteler (tüm ekip),
+    Onay Bekleyenler paneli, Atanmamış Vakalar (Ata butonu + dropdown
+    ile).
+
+-   **Admin:** Yönetici ile aynı görünüm. Ek olarak kullanıcı oluşturma
+    onay istekleri Onay Bekleyenler panelinde listelenir.
+
+### Veri Kaynakları
+
+-   KPI Kartları: SCM veritabanı Case tablosu (count sorguları).
+
+-   Kritik İşlemler: FDM (Fraud Data Mart) -- salt okunur sorgu.
+
+-   Son Aktiviteler: SCM veritabanı User_Activity tablosu.
+
+-   SLA Durumu: SCM veritabanı + system_setting tablosu (eşik
+    değerleri).
+
+-   Fraud Tutar Özeti: FDM'den beslenen tran_marking tablosu (salt
+    okunur).
+
+-   Onay Bekleyenler: Maker-Checker açıksa, SCM veritabanı Approval
+    tablosu.
+
+-   Review'da Bekleyenler: SCM veritabanı Case_Review tablosu
+    (reviewer_user_id = oturum kullanıcısı, status = pending). Vaka
+    statüsünü değiştirmez; ayrı bir review kaydı olarak tutulur.
+    Maker-Checker'dan bağımsız çalışır.
+
+### Navigasyon
+
+Dashboard'daki her kart ve panel tıklanabilirdir. Tıklama davranışları:
+KPI kartları → ilgili liste sayfasına filtreli yönlendirme, Review'da
+Bekleyenler → My Cases "İncelemem için Gönderilenler" sekmesi, Kritik
+İşlemler → İşlem Yönetimi ekranı, Vakalarım → Vaka Detayı ekranı, Onay
+Bekleyenler (Vaka Kapatma) → My Cases "Onay Bekleyenler" sekmesi, Onay
+Bekleyenler (Kullanıcı Oluşturma) → Kullanıcı Yönetimi "Onay Bekleyenler"
+paneli, Atanmamış Vakalar → Vaka Listesi
+(unassigned filtreli). Sol menüdeki \"Dashboard\" linki her zaman bu
+sayfaya döndürür.
+
+## 4.4 İşlem Yönetimi (Transaction Management) Ekranı
+
+Bu ekran, Alert Triage\'den işaretlenen (marked) işlemlerin FDM
+üzerinden listelendiği ve analistlerin işlemlerden vaka oluşturduğu
+merkezi sayfadır. Ekran açıldığında varsayılan olarak yalnızca Marked
+Transactions (işaretlenmiş işlemler) listelenir. Analist arama (search)
+fonksiyonunu kullandığında Kafka/PostgreSQL\'den gelen tüm işlemler
+arasında arama yapabilir ve sonuçları görüntüleyebilir. Analistler bu
+sayfadan bir veya birden fazla işlem seçerek vaka oluşturur.
+
++-----------------------------------------------------------------------+
+| **Önemli Tasarım Notu**                                               |
+|                                                                       |
+| -   İşlem Yönetimi sayfası vaka oluşturmanın başlangıç noktasıdır;    |
+|     case oluşturmak için önce bu ekrandan işlemler seçilmelidir.      |
+|                                                                       |
+| -   Ekran açıldığında varsayılan olarak Alert Triage'den \"Send to    |
+|     Case Manager\" ile işaretlenmiş (marked) işlemler listelenir.     |
+|     Analist bu işlemler arasından seçim yaparak vaka oluşturur.       |
+|     Search fonksiyonu kullanıldığında ise Kafka/PostgreSQL'den gelen  |
+|     tüm işlemler arasında arama yapılabilir; böylece marked olmayan   |
+|     işlemler de yani bütün işlemler bulunup vakaya eklenebilir.       |
+|                                                                       |
+| -   Fraud skoru: Her işlem için SFD\'den gelen severity/score bilgisi |
+|     bu listede görüntülenir.                                          |
+|                                                                       |
+| -   Analist işlemleri inceledi, seçti, \"Create Case\" dedi → bir     |
+|     veya birden fazla işlem seçilerek case oluşturuldu.               |
+|                                                                       |
+| -   Bu alanda bir vakaya eklenmiş işlemler \"Vakaya Eklendi\" olarak  |
+|     işaretlenir ve seçim kutuları devre dışı (disabled) görüntülenir. |
++=======================================================================+
+|                                                                       |
++-----------------------------------------------------------------------+
+
+### Ekran Alanları: İşlem Listesi
+
+  -------------------------------------------------------------------------------------
+  **Alan Adı**  **Tip**        **Kaynak**                    **Açıklama / Kontrol**
+  ------------- -------------- ----------------------------- --------------------------
+  Checkbox      Checkbox       ---                           Tekli veya çoklu seçim
+  (Seçim)                                                    için. Zaten bir vakaya
+                                                             eklenmiş işlemler için
+                                                             checkbox disabled görünür.
+
+  İşlem ID      Text (link)    tran.id                       İşlemin benzersiz kimliği.
+                                                             Tıklandığında işlem detay
+                                                             paneli açılır.
+
+  İşlem Kaynağı Badge/Tag      alert_event.source            payment_fraud, app_fraud,
+                                                             int_fraud vb. Renk kodlu
+                                                             rozet.
+
+  Varlık Türü   Text           alert_event.entity_type       Customer, Account, Card,
+                                                             Device.
+
+  Varlık        Text           alert_event.entity_key        Varlık kimlik değeri.
+  Anahtarı                                                   
+
+  Fraud Skoru / Sayı / Gauge   alert.severity /              Nümerik skor veya
+  Önem                         alert_event.score             Low/Medium/High/Critical
+                                                             kategorisi. Yüksek skorda
+                                                             kırmızı renk. Alert
+                                                             Triage'den gelen skor
+                                                             bilgisi.
+
+  Tetikleyici   Text (link)    alert_event.trigger_tran_id   İşlemi tetikleyen kural
+  Kural                                                      bilgisi.
+
+  İşaretlenme   Badge/Status   alert.status_code             Marked (işaretlenmiş),
+  Durumu                                                     Unmarked (işaretlenmemiş),
+                                                             Case Assigned (vakaya
+                                                             eklenmiş). Renk kodlu.
+
+  Oluşturma     DateTime       alert.create_ts               GG.AA.YYYY SS:dd
+  Tarihi                                                     formatında.
+
+  Vaka Durumu   Badge / Lock   Case_Alert tablosu            İşlem zaten bir vakaya
+                İkonu                                        eklendiyse \"Vakaya
+                                                             Eklendi\" rozeti ve seçim
+                                                             kilidi gösterilir.
+  -------------------------------------------------------------------------------------
+
+### Filtre ve Arama Paneli
+
+-   İşlem ID ile arama
+
+-   Varlık türü filtresi (dropdown: Müşteri, Hesap, Kart, Cihaz)
+
+-   Fraud skoru aralığı (min-max)
+
+-   İşaretlenme durumu filtresi (Marked / Unmarked / Case Assigned)
+
+-   Tarih aralığı (Başlangıç / Bitiş tarih seçici)
+
+-   Vaka durumu filtresi: \"Vakasız\" / \"Vakaya Eklendi\" / \"Tümü\"
+
+### Üst Aksiyon Alanı
+
+-   \"+ Vaka Oluştur\" butonu: en az bir işlem seçildiğinde aktif hale
+    gelir. Seçili işlemlerle yeni vaka oluşturma modali açılır.
+
+-   Seçili işlem sayısı göstergesi (\"3 işlem seçildi\")
+
+### Vaka Oluşturma Süreci (Bu Ekrandan)
+
+-   Analist bir veya birden fazla işlemi checkbox ile seçer.
+
+-   \"+ Vaka Oluştur\" butonuna tıklar.
+
+-   Modal açılır: Vaka Adı (zorunlu, serbest metin), Alan (dropdown),
+    Önem Derecesi (dropdown), Açıklama (opsiyonel textarea) alanları.
+
+-   Analist bilgileri girer ve \"Oluştur\"a tıklar.
+
+-   Vaka oluşturulur, seçilen işlemler Case_Transaction tablosuna
+    kaydedilir.
+
+-   Oluşturulan işlemler listede \"Vakaya Eklendi\" olarak işaretlenir
+    ve checkbox\'ları disable edilir.
+
+-   Yeni oluşturulan vaka Vaka Listesi\'nde \"Open\" statüsüyle görünür.
+
+## 4.5 Vaka Listesi (Cases) Ekranı
+
+Bu ekran, kullanıcının yetkili olduğu tüm vakaları listeleyen ana
+soruşturma merkezidir. Mock-up\'larda görülen tasarım temel alınmıştır.
+
+### Üst Özet Kartları (Summary Cards)
+
+  -----------------------------------------------------------------------
+  **Kart**   **Değer / Kaynak**
+  ---------- ------------------------------------------------------------
+  Total      Kullanıcının yetkili olduğu alandaki toplam vaka sayısı.
+  Cases      
+
+  Open Cases Statüsü Open olan vakalar.
+
+  Closed     Statüsü Closed olan vakalar.
+  Cases      
+
+  My Cases   Yalnızca giriş yapmış kullanıcıya atanmış vakalar
+             (owner_user_id = oturum kullanıcısı). My Cases ekranı üç
+             sekme (pane) içerir: "Vakalarım" (oluşturduğum/atandığım
+             vakalar), "İncelemem için Gönderilenler" (başka
+             kullanıcılar tarafından bana review için gönderilmiş
+             vakalar) ve "Onay Bekleyenler" (Maker-Checker AÇIK
+             olduğunda, vaka kapatma onay istekleri; yalnızca
+             Yönetici ve Admin rollerinde görünür). Not: Review, vaka sistemi içindeki informal bir eş
+             değerlendirme mekanizmasıdır; Maker-Checker onay yapısından
+             tamamen bağımsızdır. Vaka sahibi, vakasını herhangi bir
+             kullanıcıya review için gönderebilir ancak review
+             tamamlanmasını beklemeden vakayı kapatabilir. Review
+             istekleri ve cevapları denetim izine (audit trail)
+             kaydedilir.[burada hem kendi create ettiklerim hem de review
+             ettiklerim (yani sent for my review olanlar)ayrı
+             olmalı]{.comment-start id="35" author="İlkay Aydoğdu"
+             date="2026-02-20T11:03:00Z"}[]{.comment-end id="35"}
+  -----------------------------------------------------------------------
+
+### Liste Tablo Sütunları
+
+  -----------------------------------------------------------------------------
+  **Sütun   **Veri Kaynağı**                 **Tip**   **Notlar**
+  Adı**                                                
+  --------- -------------------------------- --------- ------------------------
+  Case ID   case.id                          Sayı      Benzersiz vaka kimliği.
+                                                       Sıralama yapılabilir.
+
+  Case Name case.name                        Metin     Serbest metin vaka adı.
+                                                       Üst arama çubuğunda bu
+                                                       alan üzerinden arama
+                                                       yapılır.
+
+  Status    case.status                      Badge     Open (mavi), Closed
+                                                       (yeşil), Pending Closure
+                                                       (turuncu), Archived
+                                                       (gri). Renk kodlu rozet.
+                                                       Not: "Pending Closure"
+                                                       yalnızca Maker-Checker
+                                                       AÇIK olduğunda görülür
+                                                       ve manager onayı bekler
+                                                       (blokleyici). Review,
+                                                       ayrı bir vaka statüsü
+                                                       değildir; vaka Open
+                                                       statüsünde kalırken
+                                                       başka bir kullanıcıya
+                                                       review için
+                                                       gönderilebilir. Archived
+                                                       vakalar varsayılan
+                                                       listede gizlenir, filtre
+                                                       ile erişilebilir.
+
+  Create    case.created_by → user.name      Metin     Vakayı oluşturan
+  User                                                 kullanıcı adı.
+
+  Create    case.create_ts                   Tarih     GG.AA.YYYY formatında.
+  Date                                                 
+
+  Update    case.updated_by → user.name      Metin     Vakayı son güncelleyen
+  User                                                 kullanıcı.
+
+  Update    case.update_ts                   Tarih     Son güncelleme tarihi.
+  Date                                                 
+
+  Total     SUM(tran_marking.fraud_amount)   Para /    Vakaya bağlı
+  Amount                                     Tutar     işaretlenmiş işlemlerin
+                                                       toplam fraud tutarı.
+                                                       Para birimi sembolü ile
+                                                       gösterilir. USD/EUR/TRY
+                                                       desteği. İşaretlenmiş
+                                                       işlem yoksa: gösterilir.
+
+  Actions   ---                              Menü (⋮)  Üç nokta menüsü. İçerik:
+                                                       Open Drawer, See
+                                                       Details, Edit Case,
+                                                       Archive Case (onay
+                                                       modalı ile).
+  -----------------------------------------------------------------------------
+
+### Arama ve Filtre
+
+-   Üst arama çubuğu: Case Name, Case ID veya kullanıcı adına göre anlık
+    arama (min 2 karakter).
+
+-   Filter butonu: Yan panel açar. İçerik: Date From (tarih seçici),
+    Date To (tarih seçici), Status (dropdown: Open/Closed/Pending
+    Closure/Archived). Varsayılan filtre Archived hariç tüm statüleri
+    gösterir.
+
+-   Export butonu: Listedeki tüm vakalar Excel (.xlsx) olarak indirilir.
+    Aktif filtreler export\'a yansır.
+
+-   Sayfa başına satır: 10 (varsayılan), dropdown ile 25/50 seçilebilir.
+    Sayfalama (pagination) kontrolleri sağ altta.
+
+### Vaka Atama Süreci (Case Listesinden)
+
+Notlarda belirtildiği üzere, vakalar listeye unassigned (atanmamış)
+olarak düşer ve atama işlemi doğrudan liste üzerinden yapılabilir:
+
+-   Yalnızca Yönetici rolündeki kullanıcılar atama yapabilir. Actions
+    menüsünden veya satıra tıklanarak açılan detay panelinden \"Ata\"
+    seçilir.
+
+-   Dropdown menüsü açılır; sistemdeki tüm aktif kullanıcılar listelenir
+    (ad ve rol bilgisiyle).
+
+-   Bir kullanıcı seçilip onaylandığında case.owner_user_id güncellenir.
+
+-   Yetki: Atama işlemi yalnızca Yönetici rolüne aittir. Analistler ve
+    İnceleyiciler atama yapamaz; yalnızca kendi vakalarını görebilir ve
+    düzenleyebilir.
+
+-   Atama işlemi User_Activity tablosuna kaydedilir.
+
+### Actions Menüsü Detayı
+
+-   Open Drawer: Sağ yan panel (drawer) açılır. Vaka özeti görüntülenir.
+
+-   See Details: Vaka Detay sayfasına yönlendirme yapar.
+
+-   Edit Case: Vaka Adı, Alan, Önem Derecesi düzenlenebilir hale gelir.
+
+-   Archive Case: Yalnızca **Closed** statüsündeki vakalar
+    arşivlenebilir. Açık veya Pending Closure statüsündeki vakalar
+    arşivlenemez; buton bu durumlarda disabled gösterilir. Tıklandığında
+    "Bu vakayı arşivlemek istediğinize emin misiniz?" onay modali
+    açılır. Arşivleme işlemi **her zaman Maker-Checker sürecine
+    tabidir** (sistem ayarından bağımsız olarak zorunludur). Onaylanan
+    vaka soft delete ile arşivlenir: `case.status = 'Archived'` olarak
+    güncellenir, vaka ve bağlı tüm veriler veritabanında korunur ancak
+    varsayılan UI listelerinde görünmez. Arşivlenen vakalar raporlardan
+    ve filtre ile erişilebilir kalır. Hard delete hiçbir koşulda
+    yapılmaz; denetim izi bütünlüğü korunur.
+
+-   Vaka İlişkilendir: Başka bir vakayı bu vakayla ilişkilendirme modali
+    açılır. İlişki türü seçilir: Parent-Child (hiyerarşik) veya Sibling
+    (kardeş/eş düzey). Hedef vaka arama kutusundan Case ID veya Case
+    Name ile aranır.
+
+### Vaka Arama (Case Search)
+
+Vaka Listesi ekranında üst arama çubuğu, hızlı ve kapsamlı vaka arama
+imkânı sunar:
+
+-   Case ID, Case Name veya kullanıcı adına göre anlık arama (min 2
+    karakter, debounce ile).
+
+-   Filter paneli: Status, Tarih aralığı, Önem derecesi, Atanan
+    kullanıcı ve Alan (Domain) filtrelerine göre sonuçlar daraltılır.
+
+-   Arama sonuçları tabloda anlık olarak güncellenir. Export butonu
+    aktif filtrelerle uyumlu çalışır.
+
+### Vaka İlişkilendirme (Case Linking)
+
+Vaka Listesi ve Vaka Detay ekranlarından vakalar arası ilişki
+kurulabilir. İki tür ilişki desteklenir:
+
+-   **Parent-Child (Hiyerarşik):** Bir vaka başka bir vakanın altına
+    yerleştirilir. Parent case üst çatı, child case alt bileşendir. Örn.
+    geniş dolandırıcılık operasonunda parent case şebekeyi, child
+    case'ler farklı şubelerdeki vakaları temsil eder. Bir child yalnızca
+    bir parent'a bağlanabilir.
+
+-   **Sibling (Kardeş/Eş Düzey):** İki vaka hiyerarşik olmadan birbirine
+    bağlanır. Örn. aynı müşteriye ait farklı kanallardaki şüpheli
+    işlemler ilgili (related) olarak işaretlenir. Sibling ilişkisi çift
+    yönlüdür (A--B bağlandığında B--A da otomatik oluşur).
+
+**İlişkilendirme Süreci:**
+
+-   Analist, Actions menüsünden \"Vaka İlişkilendir\" seçer veya Vaka
+    Detay ekranındaki \"İlişkili Vakalar\" sekmesinden \"+ İlişki Ekle\"
+    butonuna tıklar.
+
+-   Modal açılır: İlişki Türü (Parent-Child / Sibling) seçilir, hedef
+    vaka Case ID veya Case Name ile aranır.
+
+-   Parent-Child seçildiğinde yön belirtilir: \"Bu vakayı child olarak
+    ekle\" veya \"Bu vakayı parent olarak ata\".
+
+-   İlişki oluşturulur ve her iki vakanın \"İlişkili Vakalar\"
+    sekmesinde görünür hale gelir.
+
+## 4.6 Vaka Detayı (Case Details) Ekranı
+
+Analistin tüm soruşturma çalışmasını yürüttüğü ana çalışma alanıdır. Hem
+ayrı bir tam sayfa hem de liste üzerinden açılan yan panel (drawer)
+olarak tasarlanabilir.
+
+### Başlık Alanı (Case Header)
+
+  ------------------------------------------------------------------------
+  **Alan**     **Kaynak**          **Açıklama**
+  ------------ ------------------- ---------------------------------------
+  Vaka İkonu + case.name           Büyük font. Vaka adı ve önem derecesi
+  Adı                              rozeti birlikte gösterilir.
+
+  Durum Rozeti case.status         Renk kodlu: Open (mavi), Closed
+                                   (yeşil), Pending Closure (turuncu),
+                                   Archived (gri).
+
+  Case ID      case.id             Salt okunur.
+
+  Case Name    case.name           Düzenlenebilir.
+
+  Create User  user.name           Salt okunur.
+
+  Create Date  case.create_ts      GG.AA.YYYY formatı. Salt okunur.
+
+  Update User  user.name           Son güncelleyen. Salt okunur.
+
+  Update Date  case.update_ts      Salt okunur.
+
+  Total Amount SUM(tran_marking)   Toplam fraud tutarı. Para birimi
+                                   sembolü ile (TRY/USD/EUR).
+  ------------------------------------------------------------------------
+
+### Sekmeler (Tabs)
+
+Vaka Detay ekranı aşağıdaki sekmelerden oluşur:
+
+  -----------------------------------------------------------------------
+  **Sekme**      **İçerik Özeti**
+  -------------- --------------------------------------------------------
+  Customer       Vakaya bağlı müşterileri listeler. Sütunlar: Customer
+  (Müşteri)      No, Name, Phone Number, Email Address.
+
+  Debit Card     Vakaya bağlı banka kartlarını listeler. Sütunlar: Card
+  (Banka Kartı)  Number (maskeli), Card Type, Expiry Date, Status
+                 (Active/Blocked).
+
+  Credit Card    Vakaya bağlı kredi kartlarını listeler. Sütunlar: Card
+  (Kredi Kartı)  Number (maskeli), Card Type, Expiry Date, Status.
+
+  Comments       Vaka yorumları kronolojik sırayla. Yeni yorum
+  (Yorumlar)     textarea\'sı altta. Kullanıcı, tarih/saat ve yorum
+                 içeriği gösterilir.
+
+  Attachments    Yüklenen dosyaların listesi. Sütunlar: Dosya adı, boyut,
+  (Ekler)        yükleyen, yükleme tarihi, indirme ikonu. Yeni dosya
+                 yükleme alanı.
+
+  Case History   Vaka üzerindeki tüm değişiklikler zaman sırası ile
+  (Geçmiş)       gösterilir. Kaynak: User_Activity tablosu.
+
+  Transactions   Vakaya bağlı tüm işlemler ve fraud bilgileri (salt
+  (İşlemler)     okunur). Sütunlar: İşlem ID, Tarih, Tür, Tutar, Para
+                 Birimi, Fraud Durumu, Fraud Tutarı, Banka Payı, Müşteri
+                 Payı. Tüm veriler upstream sistemlerden (FDM) gelir, SCM
+                 üzerinden değişiklik yapılmaz.
+
+  İlişkili       Vakanın parent-child hiyerarşisi, sibling (kardeş)
+  Vakalar        ilişkileri ve ilgili vakalar. Parent vaka varsa üst vaka
+                 bilgisi gösterilir. Child ve sibling vakalar
+                 listelenebilir. Yeni child/sibling vaka ekleme, mevcut
+                 vakayı parent altına taşıma ve ilişki kaldırma işlemleri
+                 bu sekmeden yapılır. Sütunlar: Case ID, Case Name,
+                 İlişki Türü (Parent/Child/Sibling), Status, Create Date.
+  -----------------------------------------------------------------------
+
+### Varlık Sekmeleri Hakkında Detay (Entity Tabs)
+
+Müşteri, Banka Kartı ve Kredi Kartı sekmeleri, varlık bilgilerini tek
+tip tablo yapısında gösterir. Notlarda belirtildiği üzere, bu sekmeler
+ileriki versiyonda tek bir \"Varlıklar\" (Entities) sekmesinde
+birleştirilebilir; entity türü filtreleme ile ayrıştırılır:
+
+-   Entities sekmesine girildiğinde varsayılan olarak tüm varlıklar tek
+    tabloda gösterilir.
+
+-   Entity Type filtresi (Müşteri / Banka Kartı / Kredi Kartı / Hesap)
+    ile tablo anlık olarak filtrelenir.
+
+-   Bu yaklaşım, farklı entity türleri arasında geçişi kolaylaştırır ve
+    sekme sayısını azaltır.
+
+### Vaka Hiyerarşisi ve Gruplama (Case Hierarchy)
+
+SCM, vakalar arasında iki tür ilişki kurulmasını destekler: (1)
+Parent-Child (hiyerarşik) ilişki ve (2) Sibling (kardeş/eş düzey)
+ilişki. Bu mekanizma, Vaka Detay ekranındaki \"İlişkili Vakalar\"
+sekmesi ve Case Listesi'ndeki \"Vaka İlişkilendir\" aksiyonu üzerinden
+yönetilir. Parent-Child'da bir vaka başka bir vakanın altına
+yerleştirilir (üst vaka parent, alt vaka child). Sibling'da ise iki vaka
+hiyerarşik olmadan birbirine bağlanır (çift yönlü ilişki). Parent
+vakayla ilişkilendirilen child vakaların işlemleri dolaylı olarak parent
+ile de ilişkilenmiş olur.
+
+**Kullanım Senaryoları:**
+
+-   Geniş dolandırıcılık operasyonu: Parent case genel şebekeyi temsil
+    eder, child case'ler farklı şubelerdeki veya kanallardaki ilgili
+    vakaları içerir.
+
+-   Bölgesel gruplama: Parent case geniş bir bölgeyi, child case'ler alt
+    bölgeleri temsil eder.
+
+-   Zamana yayılmış seri dolandırıcılık: Aynı kişiye ait farklı zaman
+    dilimlerindeki vakalar bir parent altında toplanır.
+
+-   Cross-channel fraud: Farklı kanallardan (mobil, internet, ATM) gelen
+    ilgili vakalar ortak bir parent altında gruplanır.
+
+**Teknik Kurallar:**
+
+-   Case tablosundaki parent_case_id (FK, nullable) alanı ile ağaç
+    yapısı (tree structure) oluşturulur.
+
+-   Bir child vaka yalnızca bir parent'a bağlanabilir (tek parent --
+    ağaç yapısı).
+
+-   Önerilen derinlik sınırı: En fazla 2--3 seviye (Parent → Child →
+    Grandchild).
+
+-   Parent vaka kapatıldığında child vakaların durumu değişmez; her vaka
+    bağımsız yaşam döngüsüne sahiptir.
+
+-   Gruplama (grouping) ve iç içe yerleştirme (nesting) aynı
+    parent-child mekanizmasıyla gerçekleştirilir; fark yalnızca bakış
+    açısındadır.
+
+-   Sibling (kardeş) ilişkisi Case_Relationship tablosu üzerinden
+    yönetilir. İlişki çift yönlüdür: A--B bağlandığında B--A da otomatik
+    oluşur. Sibling vakalar bağımsız yaşam döngüsüne sahiptir.
+
+### Transactions (İşlemler) Sekmesi
+
+Bu sekme tamamen salt okunurdur. SCM üzerinden herhangi bir fraud
+işaretleme, tutar girişi veya durum değişikliği yapılmaz. İşlemler,
+Alert Triage ve FDM süreçlerinden geçerek zaten işaretlenmiş ve
+hesaplanmış şekilde SCM'ye ulaşır. Analist bu verileri yalnızca
+görüntüler.
+
+  ------------------------------------------------------------------------------
+  **Alan**     **Tip**        **Kaynak**                    **Kontrol /
+                                                            Davranış**
+  ------------ -------------- ----------------------------- --------------------
+  İşlem ID     Text (link)    transaction.id                Tıklandığında işlem
+                                                            detay paneli açılır.
+
+  İşlem Tarihi DateTime       transaction.time              GG.AA.YYYY SS:dd.
+                                                            Salt okunur.
+
+  İşlem Türü   Text           transaction.type_code         Havale, kredi kartı,
+                                                            EFT vb. Salt okunur.
+
+  Tutar        Para (salt     transaction.amount            Para birimi sembolü
+               okunur)                                      ile gösterilir
+                                                            (TRY/USD/EUR).
+
+  Para Birimi  Text           transaction.currency_code     ISO kodu. Salt
+                                                            okunur.
+
+  Fraud Durumu Badge / Renk   tran_marking.is_fraud         FDM'den gelen fraud
+               Kodu                                         durumu. Fraud olan
+                                                            işlemler kırmızı,
+                                                            olmayanlar yeşil
+                                                            gösterilir. Salt
+                                                            okunur.
+
+  Fraud Tutarı Para (salt     tran_marking.fraud_amount     Upstream
+               okunur)                                      sistemlerden
+                                                            hesaplanmış fraud
+                                                            tutarı. Salt okunur.
+
+  Banka Payı   Para (salt     tran_marking.bank_share       Upstream
+               okunur)                                      sistemlerden gelen
+                                                            banka payı. Salt
+                                                            okunur.
+
+  Müşteri Payı Para (salt     tran_marking.customer_share   Upstream
+               okunur)                                      sistemlerden gelen
+                                                            müşteri payı. Salt
+                                                            okunur.
+
+  Para Birimi  Text           tran_marking.currency_code    ISO kodu. Salt
+                                                            okunur.
+  ------------------------------------------------------------------------------
+
+### Vaka Kapatma Süreci
+
+-   Analist, başlık alanındaki \"Kapat\" butonuna tıklar.
+
+-   Kapatma Nedeni seçim sayfası yanda açılır. Birkaç farklı neden
+    seçeneği sunulur (örn. Soruşturma Tamamlandı, Çözüme Kavuşturuldu,
+    Mükerrer). Seçilen neden yalnızca SCM'nin case tablosuna
+    (close_reason) kaydedilir. Bu seçim FDM'e, SFD'ye veya herhangi bir
+    işlemin üzerine yazılmaz.
+
+-   Maker-Checker KAPALI ise: Vaka anında Closed statüsüne geçer. Kapama
+    nedeni (kapatma_nedeni) yalnızca SCM'nin kendi case tablosuna
+    kaydedilir; FDM'e veya SFD'ye herhangi bir güncelleme yazılmaz.
+
+-   Maker-Checker AÇIK ise: Vaka Pending Closure statüsüne geçer.
+    Approval_Request tablosuna yeni kayıt oluşturulur. Farklı bir
+    kullanıcı (Checker) My Cases \"Onay Bekleyenler\" sekmesinden
+    onaylamalıdır.
+
+-   Checker onayladığında: Vaka Closed statüsüne geçer.
+
+-   Checker reddederse: Vaka önceki statüsüne döner, analist bildirim
+    alır.
+
+-   Kısıt: Onay isteyen kullanıcı (Maker) kendi isteğini onaylayamaz.
+    UI\'da \"Onayla/Reddet\" butonları Maker için gizlenir.
+
+## 4.7 Raporlar (Reports) Ekranı
+
+Raporlar ekranı, operasyonel ve yasal raporların çalıştırıldığı ve dışa
+aktarıldığı sayfadır.
+
+### Ekran Alanları ve Yerleşim
+
+  -----------------------------------------------------------------------
+  **Alan**      **Tip**        **Açıklama / Kontrol**
+  ------------- -------------- ------------------------------------------
+  Rapor Türü    Dropdown veya  Mevcut raporlar listesi. Seçilen rapora
+  Seçimi        Radio          göre diğer alanlar dinamik olarak
+                               uyarlanır.
+
+  Tarih         Tarih Seçici   Zorunlu. Bitiş tarihinden önce olmalıdır.
+  Aralığı:                     GG.AA.YYYY formatı.
+  Başlangıç                    
+
+  Tarih         Tarih Seçici   Zorunlu. Başlangıç tarihinden sonra
+  Aralığı:                     olmalıdır. Bugünün tarihi aşılamaz.
+  Bitiş                        
+
+  Ek Filtreler  Multi-select / Rapora göre değişir: Alan filtresi,
+                Dropdown       Kullanıcı filtresi, Durum filtresi, Para
+                               birimi filtresi (TRY/USD/EUR).
+
+  Raporla /     Button         Tarih aralığı girilmeden aktif olmaz.
+  Çalıştır      (Primary)      Tıklandığında rapor sayfada render edilir
+  Butonu                       (online rapor) veya e-posta ile gönderilir
+                               (batch).
+
+  Export Butonu Button         Tarih aralığı seçildiği anda aktif hale
+                (Secondary)    gelir. Excel (.xlsx) olarak indirir.
+  -----------------------------------------------------------------------
+
+### Mevcut Raporlar
+
+-   Vaka Aktivite Özeti: Seçilen dönem için vaka sayısı, statü dağılımı,
+    kapatma kararları ve ortalama çözüm süresi.
+
+-   İşlem-Vaka İlişki Raporu: İşaretlenen işlemlere karşılık oluşturulan
+    vakalar ve oranlar.
+
+-   İşlem İşaretleme Raporu: Dönem içinde fraud olarak işaretlenen
+    işlemler, tutarlar, banka/müşteri payları; para birimi bazında
+    özetler. Veriler FDM'den gelir, SCM yalnızca raporlar.
+
+-   SLA Raporu: Vaka başına ilk analize alınma süresi, soruşturma
+    süresi, toplam işlem süresi. SLA ihlali olan vakalar kırmızı
+    vurgulanır.
+
+-   Kullanıcı Aktivite Raporu (Admin): Kullanıcı bazında vaka açma,
+    kapatma sayıları.
+
+### Raporlama Süreci
+
+-   Kullanıcı rapor türünü seçer, tarih aralığını ve filtreleri girer.
+
+-   \"Raporla\" butonuna tıklar.
+
+-   Online raporlar: Sonuçlar sayfa içinde tablo olarak render edilir.
+
+-   Batch raporlar: \"Raporunuz hazırlandığında e-posta ile
+    gönderilecektir.\" mesajı gösterilir.
+
+-   \"Export\" butonuna tıklanıldığında (tarih aralığı girildikten sonra
+    aktif olur) rapor Excel olarak indirilir.
+
+## 4.8 Admin / Yapılandırma (Settings) Ekranı
+
+Yalnızca Admin rolüne erişilebilir. Sistem parametrelerinin ve yönetişim
+ayarlarının yönetildiği sayfadır. Kullanıcı yönetimi bu ekrandan
+ayrılmış olup bağımsız bir sayfa olarak Bölüm 4.9'da tanımlanmıştır.
+
+### Sistem Ayarları: Alan Listesi
+
+  ---------------------------------------------------------------------------------------
+  **Ayar Anahtarı**                 **Tip**        **Varsayılan**   **Açıklama**
+  --------------------------------- -------------- ---------------- ---------------------
+  maker_checker_enabled             Toggle         false            Açıldığında vaka
+                                    (Boolean)                       kapatma ve kullanıcı
+                                                                    oluşturma çift onay
+                                                                    gerektirir. Sayfa
+                                                                    yetkisi buna göre
+                                                                    değişir. Not: Vaka
+                                                                    arşivleme bu ayardan
+                                                                    bağımsız olarak her
+                                                                    zaman Maker-Checker
+                                                                    sürecine tabidir.
+
+  ldap_only_mode                    Toggle         false            Bu ayar artık
+                                    (Boolean)                       yalnızca bilgi
+                                                                    amaçlıdır; KeyCloak
+                                                                    Realm
+                                                                    konfigürasyonundaki
+                                                                    User Federation
+                                                                    ayarıyla
+                                                                    eşleşmelidir.
+                                                                    Açıldığında SCM
+                                                                    arayüzünde kullanıcı
+                                                                    ekleme formunda LDAP
+                                                                    checkbox otomatik
+                                                                    işaretli ve
+                                                                    değiştirilemez gelir.
+
+  **Not:** Aşağıdaki authentication arametreleri   KeyCloak Realm : 
+  p konfigürasyonundan yönetilir ve 'de tutulmaz   tion_minutes,    
+  SCM max_failed_login_attempts,    lockout_dura   min Console →    
+  account\_                         KeyCloak Ad ve sekmelerinden    
+  session_timeout_minutes. Bu       Sessions                        
+  ayarlar Realm Settings → Security                                 
+  Defenses yapılandırılır.                                          
+
+  sla_case_first_analysis_minutes   Sayı Girişi    60               Vakanın
+                                                                    oluşturulmasından ilk
+                                                                    analize alınmasına
+                                                                    kadar geçen süre için
+                                                                    dakika cinsinden SLA
+                                                                    eşiği.
+
+  sla_case_total_processing_hours   Sayı Girişi    48               Vakanın
+                                                                    oluşturulmasından
+                                                                    kapatılmasına kadar
+                                                                    geçen toplam süre
+                                                                    için saat cinsinden
+                                                                    SLA eşiği.
+
+  default_currency                  Dropdown       TRY              Sistem varsayılan
+                                                                    para birimi. TRY,
+                                                                    USD, EUR seçenekleri.
+                                                                    (Ya da multi-currency
+                                                                    için TRY +
+                                                                    USD/EUR/...)
+
+  smtp_host                         Text Input     ---              E-posta bildirimleri
+                                                                    için SMTP sunucu
+                                                                    adresi.
+
+  smtp_port                         Sayı Girişi    587              SMTP port numarası.
+                                                                    0--65535 arasında
+                                                                    olmalıdır.
+
+  smtp_user                         Text Input     ---              SMTP kimlik doğrulama
+                                                                    kullanıcı adı.
+
+  smtp_password                     Password Input ---              SMTP şifresi.
+                                                                    Veritabanında şifreli
+                                                                    saklanır.
+
+  smtp_from_address                 E-posta        ---              Gönderici e-posta
+                                                                    adresi. Geçerli
+                                                                    e-posta formatı
+                                                                    zorunludur.
+
+  notification_enabled              Toggle         false            Sistem bildirimleri
+                                                                    için e-posta
+                                                                    gönderimi.
+                                                                    Açıldığında SMTP
+                                                                    ayarları zorunlu hale
+                                                                    gelir.
+
+  company_name                      Text Input     SADE Vaka        Sidebar\'da görünecək
+                                                   Yöneticisi       kurum/şirket adı.
+                                                                    Sistem adı yerine bu
+                                                                    değer gösterilir. Boş
+                                                                    bırakılırsa
+                                                                    varsayılan \"SADE
+                                                                    Case Manager\"
+                                                                    kullanılır. Maks. 50
+                                                                    karakter.
+
+  company_logo                      Dosya Yükleme  \-\--            Sidebar\'ın üst
+                                                                    köşesinde görünecək
+                                                                    kurum logosu.
+                                                                    Desteklenen
+                                                                    formatlar: PNG, SVG.
+                                                                    Maks. boyut: 200 KB.
+                                                                    Önerilen ölçü: 160x40
+                                                                    px. Yüklenmediyse
+                                                                    varsayılan SCM ikonu
+                                                                    gösterilir. Silme
+                                                                    butonu ile logo
+                                                                    kaldırılabilir.
+  ---------------------------------------------------------------------------------------
+
+## 4.9 Kullanıcı Yönetimi (User Management) Ekranı
+
+Yalnızca **Yönetici** ve **Admin** rollerine erişilebilir. Sol menüde
+ayrı bir öğe olarak gösterilir; bu roller dışındaki kullanıcılar menü
+öğesini görmez. Kullanıcı oluşturma, düzenleme, rol atama ve durum
+yönetiminin yapıldığı bağımsız sayfadır.
+
+### Kullanıcı Listesi
+
+-   Mevcut kullanıcılar listesi: Ad, E-posta, Rol, Alan, Durum
+    (Aktif/Bekliyor/Pasif).
+
+-   \"+ Kullanıcı Ekle\" butonuna tıklandığında kullanıcı oluşturma
+    formu/modalı açılır.
+
+-   Maker-Checker AÇIK ise: Yeni kullanıcı pending_approval statüsünde
+    oluşturulur, farklı bir Admin onaylamalıdır.
+
+-   LDAP-Only KAPALI iken de LDAP kullanıcısı eklenebilir; bunun için
+    formda LDAP checkbox\'u işaretlenir.
+
+### Kullanıcı Ekleme Formu: Alan Spesifikasyonu
+
+  --------------------------------------------------------------------------
+  **Alan Adı**  **Tip**    **Zorunlu**   **Validasyon / Davranış**
+  ------------- ---------- ------------- -----------------------------------
+  Ad Soyad      Text Input Evet          Boş bırakılamaz. Her iki tür için
+                                         zorunludur.
+
+  Rol           Dropdown   Evet          Seçenekler: Fraud Analist,
+                                         İnceleyici, Yönetici, Admin.
+
+  Alan (Domain) Dropdown   Evet          Sistemdeki aktif alanlar
+                                         listelenir.
+
+  LDAP          Checkbox   Hayır         İşaretlenirse kullanıcı LDAP\'tan
+  Kullanıcısı                            kimlik doğrular; işaretlenmezse
+  (Checkbox)                             yerel kullanıcı olarak KeyCloak'ta
+                                         oluşturulur. KeyCloak User
+                                         Federation ayarıyla eşleşmelidir.
+
+  E-posta       Email      Evet          Her iki tür için zorunludur.
+                Input                    Geçerli e-posta formatı kontrol
+                                         edilir. Sistemde kayıtlı e-posta
+                                         kabul edilmez (unique).
+  --------------------------------------------------------------------------
+
+**Not:** Parola alanları bu formda yer almaz. Yerel kullanıcılar için
+ilk parola belirleme işlemi KeyCloak tarafından yönetilir. Admin
+kullanıcıyı SCM üzerinden oluşturduktan sonra KeyCloak Admin Console
+üzerinden kullanıcıya "Set Password" veya "Send Email - Update Password"
+aksiyonu uygulanır. Alternatif olarak SCM backend, KeyCloak Admin REST
+API aracılığıyla kullanıcıyı KeyCloak'ta da oluşturabilir ve "Required
+Action: UPDATE_PASSWORD" atayabilir; bu durumda kullanıcı ilk girişinde
+KeyCloak tarafından parola belirlemeye yönlendirilir.
+
+### LDAP Checkbox\'una Göre Form Davranışı
+
+-   Checkbox İŞARETSİZ (Yerel Kullanıcı): Ad Soyad, Rol, Alan ve E-posta
+    alanları görünür ve aktiftir. Parola alanları bulunmaz; parola
+    yönetimi tamamen KeyCloak tarafından yapılır.
+
+-   Checkbox İŞARETLİ (LDAP Kullanıcısı): Aynı alanlar (Ad Soyad, Rol,
+    Alan, E-posta) görünür. E-posta, LDAP dizinindeki adresiyle
+    eşleşmelidir. Parola LDAP tarafından yönetildiğinden SCM veya
+    KeyCloak üzerinden değiştirilemez; kullanıcılar IT departmanına
+    yönlendirilir.
+
+### Kullanıcı Ekleme İşlem Süreci
+
+-   Admin veya Yönetici \"+ Kullanıcı Ekle\" butonuna tıklar, form/modal
+    açılır.
+
+-   LDAP kullanıcısı eklenecekse \"LDAP Kullanıcısı\" checkbox\'unu
+    işaretler.
+
+-   Gerekli alanlar (Ad Soyad, Rol, Alan, E-posta) doldurulur ve
+    \"Kaydet\" butonuna tıklanır.
+
+-   Validasyon geçerse: Maker-Checker KAPALI ise kullanıcı anlık Aktif
+    olarak oluşturulur. Maker-Checker AÇIK ise pending_approval
+    statüsünde kalır, farklı bir Admin onaylamalıdır.
+
+-   SCM backend, kullanıcıyı kendi veritabanına kaydetmenin yanı sıra
+    KeyCloak Admin REST API aracılığıyla KeyCloak'ta da oluşturur. Yerel
+    kullanıcılar için KeyCloak'ta "Required Action: UPDATE_PASSWORD"
+    atanır; kullanıcı ilk girişinde KeyCloak tarafından parola
+    belirlemeye yönlendirilir.
+
+-   Validasyon hatası varsa form kaydedilmez; ilgili alanın altında hata
+    mesajı gösterilir (e-posta zaten kayıtlıysa vb.).
+
+### LDAP-Only Modunda Kullanıcı Ekleme
+
+-   LDAP-Only modu AÇIK olduğunda sistem kimlik doğrulamasını tamamen
+    LDAP\'a devreder (KeyCloak User Federation üzerinden). Bu modda
+    yerel kullanıcı oluşturulamaz; \"LDAP Kullanıcısı\" checkbox\'u
+    otomatik olarak işaretli ve değiştirilemez gelir.
+
+-   LDAP-Only modu KAPALI olduğunda: Admin veya Yönetici hem yerel
+    kullanıcı (checkbox işaretsiz) hem de LDAP kullanıcısı (checkbox
+    işaretli) oluşturabilir. Her iki durumda da parola yönetimi
+    KeyCloak/LDAP tarafından yapılır, SCM parola alanı içermez.
+
+### Onay Bekleyenler (Pending Approvals) Kuyruğu — Kullanıcı Yönetimi
+
+**Not:** Maker-Checker onay istekleri iki ayrı noktadan yönetilir:
+
+-   **Kullanıcı oluşturma onayları** → Bu ekranda (Kullanıcı Yönetimi altında) listelenir.
+-   **Vaka kapatma onayları** → My Cases ekranı altında listelenir (bkz. My Cases — Onay Bekleyenler sekmesi).
+
+Bu bölüm yalnızca kullanıcı oluşturma onaylarını kapsar:
+
+-   Maker-Checker AÇIK olduğunda bu panel Admin ve Yönetici için
+    görünür.
+
+-   Listede: İstek Türü (kullanıcı_oluşturma), Kullanıcı Adı, Rol, Alan,
+    İsteği Yapan, İstek Tarihi, Durum.
+
+-   Her satırda \"Onayla\" (yeşil) ve \"Reddet\" (kırmızı) butonları.
+
+-   Reddedildiğinde zorunlu \"Red Gerekçesi\" metin kutusu açılır.
+
+-   Kısıt: Kullanıcı kendi isteğini görebilir ama Onayla/Reddet
+    butonları yalnızca farklı bir Admin/Yönetici için aktif olur.
+
+# 5. Bildirim Sistemi (Notifications)
+
+## 5.1 Uygulama İçi Bildirimler
+
+Bildirimler, ekranın sağ üst köşesindeki zil ikonuyla erişilir.
+Okunmamış bildirim sayısı kırmızı rozet olarak gösterilir.
+
+### Bildirim Tetikleyicileri
+
+  -----------------------------------------------------------------------
+  **Olay**            **Alıcı**          **Bildirim İçeriği**
+  ------------------- ------------------ --------------------------------
+  Vaka durum          Vakaya atanmış     \"Vaka #\[ID\]: \[Yeni Durum\]
+  değişikliği (Open → kullanıcı          olarak güncellendi.\"
+  Closed vb.)                            
+
+  Maker-Checker: Yeni Yöneticiler (tüm   \"\[Kullanıcı\] tarafından
+  onay isteği         yönetici           \[vaka kapatma/kullanıcı
+  oluşturuldu         rolündekiler)      oluşturma\] onay isteği
+                                         gönderildi.\"
+
+  Maker-Checker: Onay İsteği yapan       \"\[Vaka ID / Kullanıcı\] için
+  verildi             kullanıcı (Maker)  onay isteğiniz onaylandı.\"
+
+  Maker-Checker: Onay İsteği yapan       \"\[Vaka ID / Kullanıcı\] için
+  reddedildi          kullanıcı (Maker)  onay isteğiniz reddedildi. Red
+                                         gerekçesi: \[açıklama\]\"
+
+  Vaka atandı         Vakaya atanan      \"\[Vaka ID\] size atandı.\"
+                      kullanıcı          
+
+  SLA ihlali          Vakayı işleyen     \"\[Vaka ID\] için SLA süresi
+                      analist + Yönetici aşıldı!\"
+
+  Rapor hazır         Raporu talep eden  \"\[Rapor adı\] raporunuz hazır,
+                      kullanıcı          indirmek için tıklayın.\"
+  -----------------------------------------------------------------------
+
+## 5.2 E-posta Bildirimleri
+
+Sistem, notification_enabled ayarı AÇIK olduğunda yukarıdaki olaylar
+için e-posta bildirimi de gönderebilir. Bunun için SMTP ayarlarının
+Admin ekranında yapılandırılmış olması gerekir.
+
+### SMTP Yapılandırması (Admin → Sistem Ayarları)
+
+-   SMTP Host: Sunucu adresi (örn. smtp.banka.com.tr)
+
+-   SMTP Port: 587 (TLS) veya 465 (SSL) önerilir.
+
+-   SMTP Kullanıcı: Gönderici e-posta hesabı.
+
+-   SMTP Şifre: Şifreli saklama. Veritabanında pgcrypto ile şifrelenir.
+
+-   Gönderici Adresi: \"noreply@banka.com.tr\" formatında.
+
+-   \"Bağlantıyı Test Et\" butonu: Yapılandırma kaydedilmeden önce test
+    maili gönderme.
+
+### E-posta Bildirim Kapsamı
+
+-   Vaka kapatma onayı gerekmesi (Maker-Checker bildirimi)
+
+-   Kullanıcı oluşturma onayı gerekmesi
+
+-   Onay kararı (onaylandı / reddedildi)
+
+-   SLA ihlal uyarısı (opsiyonel, sistem ayarından açılıp kapatılabilir)
+
+Not: Sistem bildirimleri için e-posta gönderimi tercihine bağlı
+olduğundan (notification_enabled), her bankada SMTP altyapısı
+olmayabilir. Bu ayar kapalı olduğunda yalnızca uygulama içi bildirimler
+aktif kalır.
+
+## 5.3 Manager Onay Akışı: Bildirim Detayı
+
+Notlarda belirtildiği üzere, Manager önüne düşen maker-checker onayları
+iki kanaldan erişilebilir:
+
+-   Soldaki menüden: Onay bekleyenler iki ayrı menü öğesinde gösterilir:
+    (1) **My Cases** altında \"Onay Bekleyenler\" sekmesi — vaka kapatma
+    onay isteklerini listeler; bekleyen istek sayısını rozet olarak
+    gösterir. (2) **Kullanıcı Yönetimi** altında \"Onay Bekleyenler\"
+    paneli — kullanıcı oluşturma onay isteklerini listeler; bekleyen
+    istek sayısını rozet olarak gösterir.
+
+-   Bildirim paneli: Her yeni onay isteği, ilgili yöneticilerin zil
+    ikonu üzerinde rozet artışına ve bildirim listesine eklenmesine
+    neden olur. Bildirime tıklandığında ilgili onay ekranına (vaka
+    kapatma → My Cases, kullanıcı oluşturma → Kullanıcı Yönetimi)
+    yönlendirilir.
+
+-   Maker-Checker yapısına göre sayfa yetkileri dinamik olarak değişir:
+    AÇIK modda vaka kapatma formu \"Onaya Gönder\" butonuna dönüşür;
+    yöneticiler ilgili Onay Bekleyenler sekmelerini/panellerini görür.
+
+# 6. Uçtan Uca Soruşturma İş Akışı
+
+  --------------------------------------------------------------------------------------
+  **Adım**   **Ekran**       **Eylem /     **Açıklama**
+                             Fonksiyon**   
+  ---------- --------------- ------------- ---------------------------------------------
+  1          Giriş Ekranı    Kimlik        Kullanıcı SCM adresine gider, KeyCloak login
+                             Doğrulama     sayfasına yönlendirilir. KeyCloak üzerinden
+                                           kimlik doğrulama yapılır ve token ile SCM'ye
+                                           döner.
+
+  2          İşlem Yönetimi  İşlem Listesi SFD\'den gelen işlemler listelenir. Analist
+                             İnceleme      durum, skor ve varlık bilgilerine göre
+                                           filtreler.
+
+  3          İşlem Yönetimi  Vaka          Bir veya birden fazla işlem seçilir, \"Vaka
+                             Oluşturma     Oluştur\" tıklanır. Vaka adı ve alan girilir.
+
+  4          Vaka Listesi    Vaka          Oluşturulan vaka listede Open ve Unassigned
+                             Görüntüleme / görünür. Yönetici atama yapar.
+                             Atama         
+
+  5          Vaka Detayı     İşlemleri     Analist vakaya bağlı işlemleri, tetiklenen
+                             İnceleme      kuralları ve ilişkili varlıkları
+                                           inceler.[işlemler?]{.comment-start id="72"
+                                           author="İlkay Aydoğdu"
+                                           date="2026-02-20T11:07:00Z"}[]{.comment-end
+                                           id="72"}
+
+  6          Vaka Detayı →   Varlık        Müşteri, banka kartı, kredi kartı, hesap
+             Customer/Card   İnceleme      bilgileri entity filtreleme ile görüntülenir.
+             sekmeleri                     
+
+  7          Vaka Detayı →   İşlem         Analist vakaya bağlı fraud işlemlerini ve
+             Transactions    İnceleme      upstream sistemlerden gelen tutar/pay
+             sekmesi         (Salt Okunur) bilgilerini inceler.
+
+  8          Vaka Detayı →   Yorum Ekleme  Bulgular belgelenir.
+             Comments                      
+             sekmesi                       
+
+  9          Vaka Detayı →   Dosya Yükleme Destekleyici belgeler yüklenir (maks. 25
+             Attachments                   MB/dosya).
+             sekmesi                       
+
+  10         Vaka Detayı     Vaka Kapatma  Kapama nedeni seçilir. Maker-Checker moduna
+                                           göre anlık kapatma veya onay akışı. Karar
+                                           yalnızca SCM'de saklanır.
+
+  11         Raporlar        Raporlama     Yönetici SLA, vaka aktivitesi ve işlem
+                                           işaretleme raporlarını çalıştırır.
+  --------------------------------------------------------------------------------------
+
+# 7. Rol Bazlı Erişim Matrisi
+
+  ----------------------------------------------------------------------------------
+  **Yetki**            **Fraud        **İnceleyici**   **Yönetici**   **Admin**
+                       Analist**                                      
+  -------------------- -------------- ---------------- -------------- --------------
+  İşlem Yönetimi:      ✓              ✓                ✓              ---
+  Liste Görüntüle                                                     
+
+  İşlem Yönetimi: Vaka ✓              ---              ✓              ---
+  Oluştur                                                             
+
+  Vaka Listesi: Tüm    ✓ (kendi)      ✓ (atanan)       ✓ (tüm)        ---
+  Alan Vakalarını                                                     
+  Görüntüle                                                           
+
+  Vaka Oluştur         ✓              ---              ✓              ---
+
+  Vaka Düzenle / Kapat ✓ (kendi)      ---              ✓ (tüm)        ---
+
+  Vaka Kapatma Onayla  ✓ (başkasının) ✓                ✓ (tüm)        ---
+  \*                                                                  
+
+  Vaka Ata             ---            ---              ✓              ---
+  (Kullanıcıya Atama)                                                 
+
+  Yorum Ekle           ✓              ✓                ✓              ---
+
+  İşlem Verilerini     ✓              ✓                ✓              ---
+  Görüntüle (Salt                                                     
+  Okunur)                                                             
+
+  Ekler Yükle / İndir  ✓              ✓                ✓              ---
+
+  Rapor Çalıştır       ✓              ✓                ✓              ---
+
+  Rapor Export (Excel) ✓              ✓                ✓              ---
+
+  Onay Bekleyenler     ---            ---              ✓              ✓
+  (My Cases — Vaka
+  Kapatma): Görüntüle
+
+  Onay Bekleyenler     ---            ---              ✓ (başkasının) ✓ (başkasının)
+  (My Cases — Vaka
+  Kapatma): Onayla /
+  Reddet \*
+
+  Onay Bekleyenler     ---            ---              ✓              ✓
+  (Kullanıcı Yönetimi
+  — Kullanıcı
+  Oluşturma):
+  Görüntüle
+
+  Onay Bekleyenler     ---            ---              ✓ (başkasının) ✓ (başkasının)
+  (Kullanıcı Yönetimi
+  — Kullanıcı
+  Oluşturma): Onayla
+  / Reddet \*                                                  
+
+  Kullanıcı Yönetimi   ---            ---              ✓              ✓
+
+  Sistem Ayarları      ---            ---              ---            ✓
+
+  SMTP Yapılandırma    ---            ---              ---            ✓
+  ----------------------------------------------------------------------------------
+
+\* Yıldız ile işaretlenen satırlar yalnızca maker_checker_enabled AÇIK
+olduğunda geçerlidir. KAPALI modda bu onay adımları atlanır.
+
+# 8. Güvenlik, Denetim ve Uyumluluk
+
+## 8.1 Güvenlik Gereksinimleri
+
+-   Tüm kimlik doğrulama (authentication) işlemleri KeyCloak tarafından
+    yönetilir. SCM hiçbir parola, OTP veya kimlik bilgisi saklamaz ve
+    işlemez.
+
+-   Tüm API endpointleri geçerli OIDC token gerektirir. Anonim erişim
+    yoktur. Token doğrulaması KeyCloak'ın JWKS endpoint'i üzerinden
+    yapılır.
+
+-   Başarısız giriş koruması, hesap kilitleme ve oturum yönetimi
+    KeyCloak Realm konfigürasyonundan yönetilir.
+
+-   Parola politikaları (minimum uzunluk, karmaşıklık, geçmiş parola
+    kontrolü) KeyCloak Password Policy ayarlarından yapılandırılır.
+
+-   Tüm HTTP trafiği için TLS 1.3.
+
+-   Veritabanı bağlantıları TLS ile sertifika pinning.
+
+-   Hassas alanlar (müşteri PII) PostgreSQL\'de pgcrypto ile şifreli
+    saklanır.
+
+-   SMTP şifresi veritabanında şifreli tutulur.
+
+-   API endpointlerine rate limiting uygulanır.
+
+-   CORS yalnızca bilinen SCM frontend domain\'leriyle kısıtlıdır.
+
+## 8.2 Denetim İzi (Audit Trail)
+
+User_Activity tablosu kapsamlı denetim izi sağlar. Aşağıdaki işlemler
+kaydedilir:
+
+-   Vaka oluşturma, güncelleme, durum değişikliği, kapatma.
+
+-   İşlem ekleme/vakaya bağlama.
+
+-   Giriş/çıkış olayları.
+
+-   Yapılandırma değişiklikleri (Admin işlemleri).
+
+-   Vaka atama işlemleri.
+
+Denetim kayıtları değiştirilemez (INSERT-only) ve şunları içerir: zaman
+damgası, user_id, action_type, etkilenen varlık (alert_id, tran_id,
+case_id) ve değişiklikler için önceki/sonraki değerler.
+
+## 8.3 [Domain bazında SLA'ler farklılaşmalı mı?]{.comment-start id="78" author="Toygun Baysal" date="2026-02-19T10:08:00Z"}SLA Hesaplaması[]{.comment-end id="78"}
+
+-   İlk Analize Kadar Süre: (first_analyse_ts - create_ts): Vakanın
+    oluşturulduktan ne kadar süre sonra ele alındığını gösterir.
+
+-   Soruşturma Süresi: (close_ts - first_analyse_ts): Vakanın ilk
+    analizden kapanışa kadar aktif soruşturma süresi.
+
+-   Toplam İşlem Süresi: (close_ts - create_ts): Vakanın
+    oluşturulmasından kapatılmasına kadar geçen uçtan uca süre.
+
+SLA eşikleri System_Setting tablosunda yapılandırılabilir. İhlaller
+Dashboard\'da ve SLA Raporunda kırmızı uyarılarla vurgulanır.
+
+## 8.4 Maker-Checker Yönetişim Çerçevesi
+
+### Vaka Kapatma: Maker-Checker Akışı
+
+-   Maker: Analist karar seçer ve \"Kapat\"ı tıklar. Vaka
+    PENDING_CLOSURE statüsüne geçer, Approval_Request kaydı oluşturulur.
+
+-   Checker: Aynı alandaki farklı bir kullanıcı (analist/yönetici) My
+    Cases \"Onay Bekleyenler\" sekmesinden vakayı inceler.
+
+-   Onayda: Vaka CLOSED statüsüne geçer. Kapama nedeni SCM'nin case
+    tablosuna işlenir; her iki kullanıcı denetim kaydına eklenir. FDM
+    veya SFD'ye herhangi bir yazışma yapılmaz.
+
+-   Reddedilmede: Vaka önceki statüsüne döner, initiating analist
+    bildirim alır ve red gerekçesi gösterilir.
+
+-   Kısıt: requested_by ≠ reviewed_by. UI\'da \"Onayla/Reddet\"
+    butonları Maker için gizlenir.
+
+### Kullanıcı Oluşturma: Maker-Checker Akışı
+
+-   Maker (Admin A): Yeni kullanıcı oluşturur. Hesap pending_approval
+    statüsünde kalır.
+
+-   Checker (Admin B): Farklı Admin, Kullanıcı Yönetimi ekranındaki
+    \"Onay Bekleyenler\" panelinden isteği inceler, rol/alan atamasını
+    doğrular.
+
+-   Onayda: Hesap aktif olur. LDAP-Only AÇIK ise önce LDAP doğrulaması
+    yapılır.
+
+-   Reddedilmede: Hesap devre dışı bırakılır, başvuran Admin bildirim
+    alır.
+
+# 9. Teknoloji Yığını ve API
+
+## 9.1 Teknoloji Yığını
+
+  -----------------------------------------------------------------------
+  **Katman**    **Teknoloji**    **Gerekçe**
+  ------------- ---------------- ----------------------------------------
+  Önyüz         Vue.js 3 + Vite  SPA mimarisi. PrimeVue veya Element Plus
+                                 UI bileşenleri. Pinia durum yönetimi.
+
+  Arka Uç API   Java 21 + Spring Kurumsal düzey, güçlü PostgreSQL
+                Boot 3           entegrasyonu, Spring Security + OIDC
+                                 ekosistemi.
+
+  Veritabanı    PostgreSQL 16    İki şema (fdm, scm). MVP için aynı
+                                 örnekte. Üretim ölçeği için ayrı
+                                 örnekler.
+
+  Mesaj Aracısı Apache Kafka     TRX yanıt boru hattı ve CDC olayları
+                                 için.
+
+  CDC           Debezium         PostgreSQL WAL tabanlı. SFD DB
+                                 değişikliklerini yakalar.
+
+  Kimlik        KeyCloak         OIDC uyumlu. LDAP entegrasyonu mevcut.
+  Doğrulama                      Alan kapsamı claim\'lerini destekler.
+
+  Dosya         MinIO / S3       Vaka ekleri. Meta veriler SCM DB\'de,
+  Depolama      uyumlu           dosyalar nesne deposunda.
+
+  Raporlama     JasperReports    Batch raporlar Excel olarak. Online
+                veya özel        raporlar API + Vue bileşenleri.
+
+  E-posta       JavaMail / SMTP  Konfigüre edilebilir SMTP. Bildirimler
+                                 ve batch rapor dağıtımı için.
+  -----------------------------------------------------------------------
+
+## 9.2 Temel API Endpointleri
+
+  -------------------------------------------------------------------------------------------------
+  **Metot**   **Endpoint**                           **Açıklama**
+  ----------- -------------------------------------- ----------------------------------------------
+  GET         /api/transactions                      İşlem listesi.
+                                                     ?marked=&status=&source=&date_from=&date_to=
+                                                     filtreleri. marked=true ile yalnızca
+                                                     işaretlenmiş işlemler döner.
+
+  GET         /api/transactions/{id}                 İşlem detayı.
+
+  POST        /api/cases                             Vaka oluştur. Body: {name, domain_id,
+                                                     severity, transaction_ids\[\], description}
+
+  GET         /api/cases                             Vaka listesi.
+                                                     ?status=&date_from=&date_to=&assigned_to=
+
+  GET         /api/cases/{id}                        Vaka detayı. Bağlı işlemler, varlık ve yorum
+                                                     bilgileri dahil.
+
+  PATCH       /api/cases/{id}                        Vaka güncelleme (ad, statü, owner, önem
+                                                     derecesi).
+
+  POST        /api/cases/{id}/archive                Vaka arşivleme isteği. Yalnızca Closed
+                                                     statüsündeki vakalar arşivlenebilir. Açık
+                                                     vakalar için 400 hata döner. Her zaman
+                                                     Maker-Checker sürecine tabidir:
+                                                     Approval_Request tablosuna kayıt oluşturulur,
+                                                     farklı bir kullanıcının onayı gerekir.
+                                                     Onaylandığında case.status = 'Archived' olarak
+                                                     güncellenir (soft delete). Hard delete
+                                                     yapılmaz.
+
+  POST        /api/cases/{id}/close                  Vaka kapatma isteği. Body: {kapama_nedeni}.
+                                                     Karar yalnızca SCM'nin case tablosuna yazılır;
+                                                     FDM veya SFD'ye yazışma yapılmaz.
+                                                     Maker-Checker moduna göre anlık kapatma veya
+                                                     onay akışı.
+
+  POST        /api/cases/{id}/assign                 Kullanıcıya atama. Body: {user_id}.
+
+  POST        /api/cases/{id}/children               Vakaya child case bağla. Body:
+                                                     {child_case_id}. İlişki oluşturulur (child'ın
+                                                     parent_case_id güncellenir). Bir child'ın
+                                                     zaten parent'ı varsa hata döner.
+
+  DELETE      /api/cases/{id}/children/{childId}     Child vaka ilişkisini kaldır. Child vakanın
+                                                     parent_case_id alanı null yapılır.
+
+  POST        /api/cases/{id}/siblings               Sibling (kardeş) ilişkisi oluştur. Body:
+                                                     {sibling_case_id}. Case_Relationship tablosuna
+                                                     çift yönlü kayıt eklenir.
+
+  DELETE      /api/cases/{id}/siblings/{siblingId}   Sibling ilişkisini kaldır. Case_Relationship
+                                                     tablosundan çift yönlü kayıt silinir.
+
+  POST        /api/cases/{id}/comments               Yorum ekleme.
+
+  POST        /api/cases/{id}/attachments            Dosya yükleme (multipart/form-data).
+
+  GET         /api/reports/{type}                    Rapor verisi.
+                                                     ?date_from=&date_to=&format=json\|xlsx
+
+  GET         /api/approvals                         Onay bekleyen istekler. Yönetici/Admin rolü
+                                                     gerektirir.
+
+  POST        /api/approvals/{id}/approve            Onayla. Body: {comment}
+
+  POST        /api/approvals/{id}/reject             Reddet. Body: {reason} (zorunlu).
+
+  POST        /api/admin/users                       Kullanıcı oluştur. Maker-Checker açıksa
+                                                     beklemede oluşturulur.
+
+  GET/PUT     /api/admin/settings                    Sistem ayarları okuma ve güncelleme. Admin
+                                                     rolü gerektirir.
+  -------------------------------------------------------------------------------------------------
+
+# 10. [Bu sorular üstünde tartışabiliriz]{.comment-start id="86" author="Toygun Baysal" date="2026-02-18T22:57:00Z"}Açık Sorular ve Sonraki Adımlar[]{.comment-end id="86"}
+
+## 10.1 Paydaş Girdisi Gerektiren Açık Sorular
+
+  -------------------------------------------------------------------------
+  **ID**   **Konu**        **Soru**
+  -------- --------------- ------------------------------------------------
+  OQ-001   İşlem Yönetimi: İşlem Yönetimi sayfasındaki Marked Transaction
+           Kaynak          listesine hangi işlemler düşer? Alert Triage\'de
+                           \"Send to Case Manager\" ile işaretlenen tüm
+                           işlemler mi, yoksa belirli kural/skor eşiğini
+                           aşanlar mı?
+
+  OQ-002   İşlem Yönetimi: İşlem listesinde fraud skoru gösterilecek mi?
+           Fraud Skoru     Skora göre renk/eşik sınıflandırması nasıl
+                           olacak?
+
+  OQ-003   Vaka Atama      Vaka atama (Assign) yetkisi yalnızca Yönetici
+           Yetkisi         rolünde mi, yoksa Analistler de kendi vakalarını
+                           başkasına devredebilir mi?
+
+  OQ-004   Entity          Müşteri, Banka Kartı ve Kredi Kartı sekmeleri
+           Sekmeleri       tek bir \"Varlıklar\" sekmesinde mi
+                           birleştirilecek? Hesap (Account) varlığı da bu
+                           kapsamda mı?
+
+  OQ-005   Bildirim:       Sistem bildirimleri için e-posta gönderimi
+           E-posta         isteniyor mu? SMTP altyapısı mevcut mu?
+
+  OQ-006   Çok Para Birimi USD ve EUR dışında başka para birimleri de
+                           desteklenecek mi? Döviz kuru kaynağı ne olacak
+                           (manuel giriş / dış servis)?
+
+  OQ-007   Maker-Checker   Maker-checker sayfa yetkileri dinamik olarak
+           Kapsam          değişecek mi? (Örn. AÇIK modda hangi butonlar
+                           gizlenir/değişir?)
+
+  OQ-008   CDC Erişimi     SAS satıcısı doğrudan veritabanı WAL erişimine
+                           izin veriyor mu? Alternatif olarak bir olay
+                           API\'si veya webhook mekanizması sunulabilir mi?
+
+  OQ-009   Batch Rapor     Batch raporlar tarihsel erişim için bir rapor
+           Arşivi          arşivinde mi saklanmalı, yoksa her seferinde mi
+                           üretilmeli?
+
+  OQ-010   Beklenen Hacim  Günlük beklenen işlem hacmi nedir? Kapasite
+                           planlaması için gerekli.
+  -------------------------------------------------------------------------
+
+## 

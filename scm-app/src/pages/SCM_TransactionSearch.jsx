@@ -1,4 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import Sidebar from "../components/Sidebar";
+import SearchInput from "../components/SearchInput";
+import FilterBar from "../components/FilterBar";
+import { fdm } from "../api/client";
 
 // ─── Mock Data ───
 const USERS = {
@@ -29,56 +33,26 @@ const formatCurrency = (amount, currency) => {
   return `${symbols[currency] || ""}${amount.toLocaleString("tr-TR")}`;
 };
 
-// Generate 60 transactions across all statuses
-const generateTransactions = () => {
-  const sources = ["payment_fraud", "cc_fraud", "app_fraud", "ato_fraud", "int_fraud"];
-  const sourceLabels = { payment_fraud: "Payment Fraud", cc_fraud: "Credit Card Fraud", app_fraud: "Application Fraud", ato_fraud: "Account Takeover", int_fraud: "Internal Fraud" };
-  const sourceColors = { payment_fraud: "#3B82F6", cc_fraud: "#8B5CF6", app_fraud: "#F59E0B", ato_fraud: "#EF4444", int_fraud: "#6366F1" };
-  const entityTypes = ["Customer", "Account", "Card", "Device"];
-  const severities = ["Low", "Medium", "High", "Critical"];
-  const severityScores = { Low: [10, 30], Medium: [31, 60], High: [61, 85], Critical: [86, 99] };
-  const allStatuses = ["Marked", "Unmarked", "Case Assigned", "Under Review"];
-  const customerNames = ["Ahmet Kara", "Fatma Demir", "Murat Yılmaz", "Zehra Aksoy", "Emre Çelik", "Sude Öztürk", "Ali Koç", "Deniz Aydın", "Baran Şimşek", "Naz Erdem"];
-  const triggerRules = ["RULE-101", "RULE-205", "RULE-312", "RULE-418", "RULE-507", "RULE-623", "RULE-734", "RULE-891", "RULE-156", "RULE-277"];
-
-  return Array.from({ length: 60 }, (_, i) => {
-    const src = sources[i % sources.length];
-    const sev = i < 10 ? "Critical" : i < 25 ? "High" : i < 42 ? "Medium" : severities[Math.floor(Math.random() * severities.length)];
-    const range = severityScores[sev];
-    const status = allStatuses[Math.floor(Math.random() * allStatuses.length)];
-    const entityType = entityTypes[Math.floor(Math.random() * entityTypes.length)];
-    const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, "0");
-    const month = String(Math.floor(Math.random() * 3) + 1).padStart(2, "0");
-    const hour = String(Math.floor(Math.random() * 24)).padStart(2, "0");
-    const min = String(Math.floor(Math.random() * 60)).padStart(2, "0");
-    const currency = ["TRY", "USD", "EUR"][Math.floor(Math.random() * 3)];
-    const amount = Math.floor(Math.random() * 500000) + 500;
-
-    return {
-      id: `TRX-${String(900100 + i)}`,
-      source: src,
-      sourceLabel: sourceLabels[src],
-      sourceColor: sourceColors[src],
-      entityType,
-      entityKey: entityType === "Customer" ? `C${100000 + Math.floor(Math.random() * 900000)}` :
-        entityType === "Account" ? `TR${Math.floor(Math.random() * 9000000000) + 1000000000}` :
-        entityType === "Card" ? `**** **** **** ${String(Math.floor(Math.random() * 9000) + 1000)}` :
-        `DEV-${String(Math.floor(Math.random() * 90000) + 10000)}`,
-      severity: sev,
-      score: Math.floor(Math.random() * (range[1] - range[0] + 1)) + range[0],
-      triggerRule: triggerRules[Math.floor(Math.random() * triggerRules.length)],
-      markStatus: status,
-      createDate: `${day}.${month}.2026 ${hour}:${min}`,
-      caseId: status === "Case Assigned" ? `#${2400 + Math.floor(Math.random() * 70)}` : null,
-      amount,
-      currency,
-      customerName: customerNames[Math.floor(Math.random() * customerNames.length)],
-      customerNo: `C${100000 + Math.floor(Math.random() * 900000)}`,
-    };
-  });
+const DOMAIN_TO_SOURCE = {
+  payment: "payment_fraud",
+  credit_card: "cc_fraud",
+  application: "app_fraud",
+  account_takeover: "ato_fraud",
+  internal: "int_fraud",
 };
 
-const TRANSACTIONS = generateTransactions();
+function normalizeTransaction(t) {
+  return {
+    id: t.id, source: t.source,
+    sourceLabel: t.source_label, sourceColor: t.source_color,
+    entityType: t.entity_type, entityKey: t.entity_key,
+    severity: t.severity, score: t.score,
+    triggerRule: t.trigger_rule, markStatus: t.mark_status,
+    createDate: t.create_date, caseId: t.case_id,
+    amount: t.amount, currency: t.currency,
+    customerName: t.customer_name, customerNo: t.customer_no,
+  };
+}
 
 const NOTIFICATIONS = [
   { id: 1, msg: "Vaka #2471 için onay talebi gönderildi", time: "5 dk önce", unread: true },
@@ -143,145 +117,21 @@ const Badge = ({ config }) => (
   }}>{config.label}</span>
 );
 
-const _UNUSED_QuickSearchOverlay = ({ isOpen, onClose, onSelectTransaction }) => {
-  const [query, setQuery] = useState("");
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    if (isOpen) { setQuery(""); setSelectedIndex(0); setTimeout(() => inputRef.current?.focus(), 50); }
-  }, [isOpen]);
-
-  const results = query.length >= 2 ? TRANSACTIONS.filter(t => {
-    const q = query.toLowerCase();
-    return t.id.toLowerCase().includes(q) || t.customerNo.toLowerCase().includes(q) ||
-      t.customerName.toLowerCase().includes(q) || t.entityKey.toLowerCase().includes(q);
-  }).slice(0, 8) : [];
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Escape") { onClose(); return; }
-    if (e.key === "ArrowDown") { e.preventDefault(); setSelectedIndex(i => Math.min(results.length - 1, i + 1)); }
-    if (e.key === "ArrowUp") { e.preventDefault(); setSelectedIndex(i => Math.max(0, i - 1)); }
-    if (e.key === "Enter" && results[selectedIndex]) { onSelectTransaction(results[selectedIndex]); onClose(); }
-  };
-
-  if (!isOpen) return null;
-
-  return (<>
-    <div onClick={onClose} style={{
-      position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)",
-      backdropFilter: "blur(4px)", zIndex: 9000, animation: "qsFadeIn 0.15s ease",
-    }} />
-    <div style={{
-      position: "fixed", top: "18%", left: "50%", transform: "translateX(-50%)",
-      width: 580, maxHeight: "60vh", background: "#fff", borderRadius: 16,
-      boxShadow: "0 25px 60px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.05)",
-      zIndex: 9001, display: "flex", flexDirection: "column", overflow: "hidden",
-      animation: "qsSlideIn 0.2s ease",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
-        <Icons.Search />
-        <input ref={inputRef} value={query} onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }} onKeyDown={handleKeyDown}
-          placeholder="İşlem ID, Müşteri No veya Müşteri Adı ile hızlı arama..."
-          style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: C.text, background: "transparent", fontFamily: "'DM Sans', sans-serif" }}
-        />
-        <kbd style={{ padding: "3px 8px", borderRadius: 5, fontSize: 11, fontWeight: 600, background: "#F1F5F9", color: C.textSecondary, border: `1px solid ${C.border}`, fontFamily: "'JetBrains Mono', monospace" }}>ESC</kbd>
-      </div>
-
-      <div style={{ flex: 1, overflow: "auto", maxHeight: 400 }}>
-        {query.length < 2 && (
-          <div style={{ padding: "32px 20px", textAlign: "center", color: C.textSecondary }}>
-            <div style={{ fontSize: 13, lineHeight: 1.6 }}>En az 2 karakter girerek FDM'deki son 3 aylık işlemler arasında hızlı arama yapın.</div>
-            <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 16 }}>
-              {[{ label: "İşlem ID", example: "TRX-900" }, { label: "Müşteri No", example: "C100" }, { label: "Müşteri Adı", example: "Ahmet" }].map(hint => (
-                <div key={hint.label} style={{ padding: "8px 14px", borderRadius: 8, background: "#F8FAFC", border: `1px solid ${C.border}`, fontSize: 11 }}>
-                  <div style={{ fontWeight: 600, color: C.text, marginBottom: 2 }}>{hint.label}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", color: C.textSecondary }}>{hint.example}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {query.length >= 2 && results.length === 0 && (
-          <div style={{ padding: "32px 20px", textAlign: "center", color: C.textSecondary, fontSize: 13 }}>
-            <span style={{ fontSize: 28, display: "block", marginBottom: 8, opacity: 0.4 }}>?</span>
-            "{query}" ile eşleşen işlem bulunamadı.
-          </div>
-        )}
-
-        {results.map((txn, idx) => {
-          const sevStyle = SEVERITY_STYLES[txn.severity];
-          const statusStyle = STATUS_STYLES[txn.markStatus];
-          return (
-            <div key={txn.id} onClick={() => { onSelectTransaction(txn); onClose(); }} onMouseEnter={() => setSelectedIndex(idx)}
-              style={{
-                display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", cursor: "pointer",
-                background: idx === selectedIndex ? "#F1F5F9" : "transparent",
-                borderBottom: `1px solid ${idx === selectedIndex ? "transparent" : "#F8FAFC"}`,
-                transition: "background 0.1s",
-              }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                background: sevStyle.bg, border: `1.5px solid ${sevStyle.border}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, fontWeight: 700, color: sevStyle.color, fontFamily: "'JetBrains Mono', monospace",
-              }}>{txn.score}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.primaryLight, fontFamily: "'JetBrains Mono', monospace" }}>{txn.id}</span>
-                  <span style={{ fontSize: 11, color: C.textSecondary }}>{txn.customerName}</span>
-                  <Badge config={statusStyle} />
-                </div>
-                <div style={{ fontSize: 11.5, color: C.textSecondary, marginTop: 3, display: "flex", gap: 12 }}>
-                  <span>{txn.sourceLabel}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{txn.entityKey}</span>
-                  <span>{txn.createDate}</span>
-                </div>
-              </div>
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", color: C.text }}>{formatCurrency(txn.amount, txn.currency)}</div>
-                <div style={{ fontSize: 10, color: C.textSecondary }}>{txn.currency}</div>
-              </div>
-              <div style={{ color: idx === selectedIndex ? C.primaryLight : "transparent", transition: "color 0.1s" }}><Icons.ArrowRight /></div>
-            </div>
-          );
-        })}
-      </div>
-
-      {query.length >= 2 && results.length > 0 && (
-        <div style={{ padding: "10px 20px", borderTop: `1px solid ${C.border}`, background: "#F8FAFC", display: "flex", gap: 16, fontSize: 11, color: C.textSecondary }}>
-          {[{ key: "↑↓", label: "Gezin" }, { key: "Enter", label: "Detay aç" }, { key: "Esc", label: "Kapat" }].map(h => (
-            <span key={h.key}><kbd style={{ padding: "1px 5px", borderRadius: 3, border: `1px solid ${C.border}`, fontSize: 10, fontFamily: "'JetBrains Mono', monospace", background: "#fff" }}>{h.key}</kbd> {h.label}</span>
-          ))}
-        </div>
-      )}
-    </div>
-    <style>{`
-      @keyframes qsFadeIn { from { opacity: 0; } to { opacity: 1; } }
-      @keyframes qsSlideIn { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-    `}</style>
-  </>);
-};
 
 
 // ════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ════════════════════════════════════════════════════════
-export default function SCMTransactionSearch({ onNavigate } = {}) {
-  const [currentRole, setCurrentRole] = useState("analyst");
+export default function SCMTransactionSearch({ onNavigate, currentRole = "analyst", onRoleChange, transactions: txnsProp, notifications = [], onMarkAllRead, onMarkRead } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeNav, setActiveNav] = useState("txn_search");
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState("payment");
-  const [domainMenuOpen, setDomainMenuOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimerRef = useRef(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [filters, setFilters] = useState({ markStatus: "Tümü", entityType: "", entityId: "", scoreMin: "", scoreMax: "", dateFrom: "", dateTo: "", source: "", amountMin: "", amountMax: "" });
-  const [colSearch, setColSearch] = useState({ id: "", source: "", entityType: "", entityKey: "", score: "", triggerRule: "", markStatus: "", date: "", amount: "", customer: "" });
+  const [filters, setFilters] = useState({ markStatus: [], entityType: "", entityId: "", scoreMin: "", scoreMax: "", dateFrom: "", dateTo: "", amountMin: "", amountMax: "" });
+  const [colSearch, setColSearch] = useState({ id: "", entityType: "", entityKey: "", score: "", markStatus: "", date: "", amount: "", customer: "" });
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
   const [displayCurrency, setDisplayCurrency] = useState("original");
@@ -289,40 +139,58 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
   const [perPage, setPerPage] = useState(15);
   const [drawerTxn, setDrawerTxn] = useState(null);
 
-  const user = USERS[currentRole];
-  const sW = sidebarCollapsed ? 72 : 260;
+  const [transactions, setTransactions] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(false);
 
-  const activeFilterCount = Object.entries(filters).reduce((c, [k, v]) => c + (k === "markStatus" ? (v !== "Tümü" ? 1 : 0) : (v ? 1 : 0)), 0);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const params = {
+      domain: DOMAIN_TO_SOURCE[selectedDomain],
+      page, limit: perPage,
+      search: debouncedSearch || undefined,
+      mark_status: filters.markStatus.length === 1 ? filters.markStatus[0] : undefined,
+      entity_type: filters.entityType || undefined,
+      entity_key: filters.entityId || undefined,
+      score_min: filters.scoreMin || undefined,
+      score_max: filters.scoreMax || undefined,
+      date_from: filters.dateFrom || undefined,
+      date_to: filters.dateTo || undefined,
+      min_amount: filters.amountMin || undefined,
+      max_amount: filters.amountMax || undefined,
+    };
+    fdm.transactions(params).then(result => {
+      if (!cancelled) {
+        setTransactions(result.data.map(normalizeTransaction));
+        setTotalCount(result.total);
+      }
+    }).catch(() => {
+      if (!cancelled) { setTransactions([]); setTotalCount(0); }
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedDomain, page, perPage, debouncedSearch,
+      filters.entityType, filters.entityId, filters.scoreMin, filters.scoreMax,
+      filters.dateFrom, filters.dateTo, filters.amountMin, filters.amountMax]);
 
-  const filtered = TRANSACTIONS.filter(t => {
-    if (searchQuery.length >= 2) {
-      const q = searchQuery.toLowerCase();
-      if (!t.id.toLowerCase().includes(q) && !t.customerNo.toLowerCase().includes(q) && !t.customerName.toLowerCase().includes(q) && !t.entityKey.toLowerCase().includes(q)) return false;
-    }
+  const activeFilterCount = Object.entries(filters).reduce((c, [k, v]) => c + (Array.isArray(v) ? v.length : (v ? 1 : 0)), 0);
+
+  const filtered = transactions.filter(t => {
     if (colSearch.id && !t.id.toLowerCase().includes(colSearch.id.toLowerCase())) return false;
-    if (colSearch.source && !t.sourceLabel.toLowerCase().includes(colSearch.source.toLowerCase())) return false;
     if (colSearch.entityType && !t.entityType.toLowerCase().includes(colSearch.entityType.toLowerCase())) return false;
     if (colSearch.entityKey && !t.entityKey.toLowerCase().includes(colSearch.entityKey.toLowerCase())) return false;
     if (colSearch.score && !String(t.score).includes(colSearch.score) && !t.severity.toLowerCase().includes(colSearch.score.toLowerCase())) return false;
-    if (colSearch.triggerRule && !t.triggerRule.toLowerCase().includes(colSearch.triggerRule.toLowerCase())) return false;
     if (colSearch.markStatus && !t.markStatus.toLowerCase().includes(colSearch.markStatus.toLowerCase()) && !(STATUS_STYLES[t.markStatus]?.label || "").toLowerCase().includes(colSearch.markStatus.toLowerCase())) return false;
     if (colSearch.date && !t.createDate.includes(colSearch.date)) return false;
     if (colSearch.amount && !String(t.amount).includes(colSearch.amount)) return false;
     if (colSearch.customer && !t.customerName.toLowerCase().includes(colSearch.customer.toLowerCase()) && !t.customerNo.toLowerCase().includes(colSearch.customer.toLowerCase())) return false;
-    if (filters.markStatus && filters.markStatus !== "Tümü" && t.markStatus !== filters.markStatus) return false;
-    if (filters.entityType && !t.entityType.toLowerCase().includes(filters.entityType.toLowerCase())) return false;
-    if (filters.entityId && !t.entityKey.toLowerCase().includes(filters.entityId.toLowerCase())) return false;
-    if (filters.source && !t.sourceLabel.toLowerCase().includes(filters.source.toLowerCase())) return false;
-    if (filters.scoreMin && t.score < parseInt(filters.scoreMin)) return false;
-    if (filters.scoreMax && t.score > parseInt(filters.scoreMax)) return false;
-    if (filters.amountMin && t.amount < parseInt(filters.amountMin)) return false;
-    if (filters.amountMax && t.amount > parseInt(filters.amountMax)) return false;
+    if (filters.markStatus.length > 0 && !filters.markStatus.includes(t.markStatus)) return false;
     return true;
   });
 
   const SORT_ACCESSORS = {
-    id: t => t.id, source: t => t.sourceLabel, entityType: t => t.entityType, entityKey: t => t.entityKey,
-    score: t => t.score, triggerRule: t => t.triggerRule, markStatus: t => t.markStatus, customer: t => t.customerName,
+    id: t => t.id, entityType: t => t.entityType, entityKey: t => t.entityKey,
+    score: t => t.score, markStatus: t => t.markStatus, customer: t => t.customerName,
     date: t => { const p = t.createDate.split(/[.\s:]/); return new Date(2026, parseInt(p[1]) - 1, parseInt(p[0]), parseInt(p[2] || 0), parseInt(p[3] || 0)); },
     amount: t => t.amount,
   };
@@ -333,8 +201,8 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
     return sortDir === "asc" ? cmp : -cmp;
   }) : filtered;
 
-  const totalPages = Math.ceil(sorted.length / perPage);
-  const paginated = sorted.slice((page - 1) * perPage, page * perPage);
+  const totalPages = Math.ceil(totalCount / perPage);
+  const paginated = sorted;
 
   const handleSort = (col) => {
     if (sortCol === col) { if (sortDir === "asc") setSortDir("desc"); else { setSortCol(null); setSortDir("asc"); } }
@@ -343,25 +211,16 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
   };
 
   const resetFilters = () => {
-    setFilters({ markStatus: "Tümü", entityType: "", entityId: "", scoreMin: "", scoreMax: "", dateFrom: "", dateTo: "", source: "", amountMin: "", amountMax: "" });
-    setColSearch({ id: "", source: "", entityType: "", entityKey: "", score: "", triggerRule: "", markStatus: "", date: "", amount: "", customer: "" });
-    setSearchQuery(""); setPage(1);
+    setFilters({ markStatus: [], entityType: "", entityId: "", scoreMin: "", scoreMax: "", dateFrom: "", dateTo: "", amountMin: "", amountMax: "" });
+    setColSearch({ id: "", entityType: "", entityKey: "", score: "", markStatus: "", date: "", amount: "", customer: "" });
+    setSearchQuery(""); setDebouncedSearch(""); clearTimeout(searchTimerRef.current); setPage(1);
   };
-
-  const navItems = [
-    { key: "dashboard", label: "Dashboard", sublabel: "Ana Sayfa", icon: <Icons.Dashboard /> },
-    { key: "case_creation", label: "Vaka Oluşturma", sublabel: "Case Creation", icon: <Icons.CaseCreate /> },
-    { key: "cases", label: "Vaka Listesi", sublabel: "Case List", icon: <Icons.Cases /> },
-    { key: "txn_search", label: "İşlem Arama", sublabel: "Transaction Search", icon: <Icons.TransactionSearch /> },
-    { key: "reports", label: "Raporlar", sublabel: "Reports", icon: <Icons.Reports /> },
-    ...(currentRole === "admin" ? [{ key: "settings", label: "Ayarlar", sublabel: "Settings", icon: <Icons.Settings /> }] : []),
-  ];
 
   const tableCols = [
     { key: "id", label: "İşlem ID", w: 110 }, { key: "customer", label: "Müşteri", w: 140 },
-    { key: "source", label: "Kaynak", w: 130 }, { key: "entityType", label: "Varlık Türü", w: 95 },
+    { key: "entityType", label: "Varlık Türü", w: 95 },
     { key: "entityKey", label: "Varlık Anahtarı", w: 150 }, { key: "score", label: "Skor", w: 80 },
-    { key: "triggerRule", label: "Kural", w: 90 }, { key: "markStatus", label: "Durum", w: 115 },
+    { key: "markStatus", label: "Durum", w: 115 },
     { key: "date", label: "Tarih", w: 120 },
     { key: "amount", label: displayCurrency === "original" ? "Tutar" : `Tutar (${displayCurrency})`, w: 130, align: "right" },
   ];
@@ -369,90 +228,19 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
   const SortIcon = ({ col }) => sortCol !== col ? <span style={{ opacity: 0.3, fontSize: 10 }}>↕</span> : sortDir === "asc" ? <Icons.SortAsc /> : <Icons.SortDesc />;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: "'DM Sans', 'Segoe UI', -apple-system, sans-serif", ...(darkMode ? {filter:"invert(1) hue-rotate(180deg)"} : {}) }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-
-      {/* ════════ SIDEBAR ════════ */}
-      <aside style={{ width: sW, background: C.sidebar, display: "flex", flexDirection: "column", transition: "width 0.3s cubic-bezier(0.4,0,0.2,1)", flexShrink: 0, zIndex: 100, position: "relative" }}>
-        <div style={{ padding: sidebarCollapsed ? "20px 12px" : "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1E40AF)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 16, flexShrink: 0 }}>S</div>
-            {!sidebarCollapsed && <div><div style={{ color: "#F1F5F9", fontWeight: 700, fontSize: 16, letterSpacing: "-0.02em" }}>SADE SCM</div><div style={{ color: "#475569", fontSize: 10, letterSpacing: "0.05em" }}>Case Management</div></div>}
-          </div>
-        </div>
-
-        <div style={{ padding: sidebarCollapsed ? "12px 8px" : "12px 16px" }}>
-          <button onClick={() => setDomainMenuOpen(!domainMenuOpen)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", cursor: "pointer", color: "#E2E8F0", justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
-            <span style={{ fontSize: 16 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.icon}</span>
-            {!sidebarCollapsed && <><span style={{ fontSize: 12.5, fontWeight: 500, flex: 1, textAlign: "left" }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label}</span><Icons.ChevronDown /></>}
-          </button>
-          {domainMenuOpen && (
-            <div style={{ marginTop: 4, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)" }}>
-              {FRAUD_DOMAINS.map(domain => (
-                <div key={domain.id} onClick={() => { setSelectedDomain(domain.id); setDomainMenuOpen(false); }}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", cursor: "pointer", background: selectedDomain === domain.id ? "rgba(59,130,246,0.15)" : "transparent", color: selectedDomain === domain.id ? "#60A5FA" : "#CBD5E1", transition: "all 0.1s" }}
-                  onMouseEnter={e => e.currentTarget.style.background = selectedDomain === domain.id ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.05)"}
-                  onMouseLeave={e => e.currentTarget.style.background = selectedDomain === domain.id ? "rgba(59,130,246,0.15)" : "transparent"}>
-                  <span style={{ fontSize: 13 }}>{domain.icon}</span>
-                  <span style={{ fontSize: 12.5, fontWeight: selectedDomain === domain.id ? 600 : 400 }}>{domain.label}</span>
-                  {selectedDomain === domain.id && <span style={{ marginLeft: "auto", color: "#60A5FA", display: "flex" }}><Icons.Check /></span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
-          {navItems.map(item => (
-            <button key={item.key} onClick={() => { setActiveNav(item.key); if (onNavigate) onNavigate(item.key); }} title={sidebarCollapsed ? item.label : undefined}
-              style={{ display: "flex", alignItems: "center", gap: 12, padding: sidebarCollapsed ? "12px 16px" : "10px 16px", borderRadius: 8, border: "none", cursor: "pointer", background: activeNav === item.key ? "rgba(59,130,246,0.15)" : "transparent", color: activeNav === item.key ? "#60A5FA" : "#94A3B8", transition: "all 0.15s", width: "100%", textAlign: "left", justifyContent: sidebarCollapsed ? "center" : "flex-start" }}
-              onMouseEnter={e => { if (activeNav !== item.key) e.currentTarget.style.background = C.sidebarHover; }}
-              onMouseLeave={e => { if (activeNav !== item.key) e.currentTarget.style.background = "transparent"; }}>
-              <span style={{ flexShrink: 0, display: "flex" }}>{item.icon}</span>
-              {!sidebarCollapsed && <div><div style={{ fontSize: 13.5, fontWeight: activeNav === item.key ? 600 : 500, lineHeight: 1.3 }}>{item.label}</div><div style={{ fontSize: 10.5, color: "#475569", lineHeight: 1.2 }}>{item.sublabel}</div></div>}
-            </button>
-          ))}
-        </nav>
-
-        <div style={{ padding: sidebarCollapsed ? "16px 8px" : "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
-            <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg, #6366F1, #8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{user.name.split(" ").map(n => n[0]).join("")}</div>
-            {!sidebarCollapsed && <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ flex: 1, overflow: "hidden", cursor: "pointer" }}><div style={{ color: "#E2E8F0", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{user.name}</div><div style={{ color: "#64748B", fontSize: 11 }}>{user.roleLabel}</div></div>}
-            {/* Dark Mode Toggle */}
-            <button onClick={e => { e.stopPropagation(); setDarkMode(d => !d); }} title={darkMode ? "Açık Mod" : "Koyu Mod"} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8", flexShrink: 0 }}>
-              {darkMode ? <Icons.Sun /> : <Icons.Moon />}
-            </button>
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications); }} style={{ width: 34, height: 34, borderRadius: 8, border: "none", background: showNotifications ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: showNotifications ? "#60A5FA" : "#94A3B8" }}
-                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-                onMouseLeave={e => e.currentTarget.style.background = showNotifications ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)"}>
-                <Icons.Bell />
-                <span style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: "50%", background: C.danger, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #0F172A" }}>3</span>
-              </button>
-              {showNotifications && (
-                <div onClick={e => e.stopPropagation()} style={{ position: "fixed", bottom: 72, left: sidebarCollapsed ? 80 : 268, width: 360, background: "#fff", borderRadius: 14, boxShadow: "0 12px 40px rgba(0,0,0,0.15)", border: `1px solid ${C.border}`, zIndex: 200, overflow: "hidden" }}>
-                  <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}><div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Bildirimler</div></div>
-                  <div style={{ maxHeight: 300, overflow: "auto" }}>
-                    {NOTIFICATIONS.map(n => (
-                      <div key={n.id} style={{ display: "flex", gap: 10, padding: "12px 20px", borderBottom: "1px solid #F8FAFC", background: n.unread ? "#FAFBFE" : "#fff" }}>
-                        {n.unread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.primaryLight, flexShrink: 0, marginTop: 6 }} />}
-                        <div style={{ flex: 1 }}><div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{n.msg}</div><div style={{ fontSize: 11, color: C.textSecondary, marginTop: 3 }}>{n.time}</div></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          {showUserMenu && (
-            <div onClick={e => e.stopPropagation()} style={{ position: "fixed", bottom: 72, left: sidebarCollapsed ? 80 : 268, background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 180, zIndex: 400, overflow: "hidden" }}>
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid #E2E8F0", fontSize: 12, color: "#64748B" }}>{user.name}</div>
-              <button onClick={() => setShowUserMenu(false)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 16px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#EF4444", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.background = "#FEF2F2"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}><Icons.LogOut /> Çıkış Yap</button>
-            </div>
-          )}
-        </div>
-        <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ position: "absolute", top: 24, right: -14, width: 28, height: 28, borderRadius: "50%", border: `2px solid ${C.border}`, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.1)", zIndex: 101, transform: sidebarCollapsed ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.3s ease" }}><Icons.ChevronRight /></button>
-      </aside>
+    <div className="scm-layout">
+      <Sidebar
+        activePage="txn_search"
+        onNavigate={onNavigate}
+        user={USERS[currentRole]}
+        selectedDomain={selectedDomain}
+        onDomainChange={setSelectedDomain}
+        collapsed={sidebarCollapsed}
+        onCollapseToggle={() => setSidebarCollapsed(c => !c)}
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        onMarkRead={onMarkRead}
+      />
 
       {/* ════════ MAIN ════════ */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -464,7 +252,7 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
               {["analyst", "manager", "admin"].map(role => (
-                <button key={role} onClick={() => setCurrentRole(role)} style={{ padding: "6px 14px", fontSize: 11.5, fontWeight: 600, border: "none", cursor: "pointer", background: currentRole === role ? C.primary : "#fff", color: currentRole === role ? "#fff" : C.textSecondary, transition: "all 0.15s" }}>
+                <button key={role} onClick={() => onRoleChange && onRoleChange(role)} style={{ padding: "6px 14px", fontSize: 11.5, fontWeight: 600, border: "none", cursor: "pointer", background: currentRole === role ? C.primary : "#fff", color: currentRole === role ? "#fff" : C.textSecondary, transition: "all 0.15s" }}>
                   {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : "Admin"}
                 </button>
               ))}
@@ -473,7 +261,7 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
           </div>
         </header>
 
-        <main style={{ flex: 1, overflow: "auto", padding: 28 }} onClick={() => { setShowNotifications(false); setDomainMenuOpen(false); setShowUserMenu(false); }}>
+        <main style={{ flex: 1, overflow: "auto", padding: 28 }}>
           {/* Info Banner */}
           <div style={{ background: "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)", borderRadius: 12, padding: "16px 22px", marginBottom: 20, border: "1px solid #BFDBFE", display: "flex", alignItems: "flex-start", gap: 12 }}>
             <div style={{ color: C.primaryLight, marginTop: 1, flexShrink: 0 }}><Icons.Info /></div>
@@ -485,10 +273,10 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
           {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
             {[
-              { label: "Toplam İşlem", value: TRANSACTIONS.length, color: C.primary, sub: "Son 3 ay" },
-              { label: "İşaretli", value: TRANSACTIONS.filter(t => t.markStatus === "Marked").length, color: C.warning, sub: "Marked" },
-              { label: "Vakaya Atanan", value: TRANSACTIONS.filter(t => t.markStatus === "Case Assigned").length, color: C.primaryLight, sub: "Case Assigned" },
-              { label: "Kritik Skorlu", value: TRANSACTIONS.filter(t => t.severity === "Critical").length, color: C.danger, sub: "Skor ≥ 86" },
+              { label: "Toplam İşlem", value: totalCount, color: C.primary, sub: "Son 3 ay" },
+              { label: "İşaretli", value: "—", color: C.warning, sub: "Marked" },
+              { label: "Vakaya Atanan", value: "—", color: C.primaryLight, sub: "Case Assigned" },
+              { label: "Kritik Skorlu", value: "—", color: C.danger, sub: "Skor ≥ 86" },
             ].map((stat, i) => (
               <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", border: `1px solid ${C.border}`, position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: stat.color }} />
@@ -504,16 +292,17 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
           {/* Action Bar */}
           <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${C.border}`, padding: "16px 22px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 280 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, maxWidth: 420, background: "#F8FAFC", borderRadius: 8, border: `1px solid ${C.border}`, padding: "0 12px" }}>
-                <Icons.Search />
-                <input type="text" placeholder="İşlem ID, Müşteri No veya Müşteri Adı ile ara..." value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
-                  style={{ flex: 1, border: "none", background: "transparent", padding: "10px 0", fontSize: 13, outline: "none", color: C.text }} />
-                {searchQuery && <button onClick={() => { setSearchQuery(""); setPage(1); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSecondary, display: "flex", padding: 2 }}><Icons.X /></button>}
-              </div>
-              <button onClick={() => setShowFilterPanel(!showFilterPanel)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: `1px solid ${showFilterPanel ? C.primaryLight : C.border}`, background: showFilterPanel ? C.primaryBg : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500, color: showFilterPanel ? C.primary : C.textSecondary }}>
-                <Icons.Filter /> Filtreler
-                {activeFilterCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, background: C.primary, color: "#fff" }}>{activeFilterCount}</span>}
-              </button>
+              <SearchInput
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setPage(1); clearTimeout(searchTimerRef.current); searchTimerRef.current = setTimeout(() => setDebouncedSearch(e.target.value), 350); }}
+                placeholder="İşlem ID, Müşteri No veya Müşteri Adı ile ara..."
+                style={{ flex: 1, maxWidth: 420 }}
+              />
+              <FilterBar.Toggle
+                open={showFilterPanel}
+                onToggle={() => setShowFilterPanel(p => !p)}
+                activeCount={activeFilterCount}
+              />
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3 }}>
@@ -529,64 +318,61 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
 
           {/* Filter Panel */}
           {showFilterPanel && (
-            <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${C.border}`, padding: "20px 22px", marginBottom: 16, animation: "fadeSlideDown 0.2s ease" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>İşaretlenme Durumu</label>
-                  <select value={filters.markStatus} onChange={e => { setFilters(f => ({ ...f, markStatus: e.target.value })); setPage(1); }} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC", color: C.text }}>
-                    <option value="Tümü">Tümü</option><option value="Marked">Marked (İşaretli)</option><option value="Unmarked">Unmarked (İşaretsiz)</option><option value="Case Assigned">Case Assigned (Vakaya Atandı)</option><option value="Under Review">Under Review (İncelemede)</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>İşlem Kaynağı</label>
-                  <select value={filters.source} onChange={e => { setFilters(f => ({ ...f, source: e.target.value })); setPage(1); }} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC", color: C.text }}>
-                    <option value="">Tümü</option><option value="Payment Fraud">Payment Fraud</option><option value="Credit Card Fraud">Credit Card Fraud</option><option value="Application Fraud">Application Fraud</option><option value="Account Takeover">Account Takeover</option><option value="Internal Fraud">Internal Fraud</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Varlık Türü</label>
-                  <select value={filters.entityType} onChange={e => { setFilters(f => ({ ...f, entityType: e.target.value, entityId: "" })); setPage(1); }} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC", color: C.text }}>
-                    <option value="">Tümü</option><option value="Customer">Müşteri</option><option value="Account">Hesap</option><option value="Card">Kart</option><option value="Device">Cihaz</option>
-                  </select>
-                </div>
-                {filters.entityType && (
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>
-                      {{ Customer: "Müşteri", Account: "Hesap", Card: "Kart", Device: "Cihaz" }[filters.entityType]} ID
-                    </label>
-                    <input type="text" placeholder={`${{ Customer: "Müşteri", Account: "Hesap", Card: "Kart", Device: "Cihaz" }[filters.entityType]} ID giriniz...`} value={filters.entityId} onChange={e => { setFilters(f => ({ ...f, entityId: e.target.value })); setPage(1); }} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC", color: C.text, boxSizing: "border-box" }} />
-                  </div>
-                )}
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Fraud Skoru Aralığı</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input type="number" placeholder="Min" value={filters.scoreMin} onChange={e => { setFilters(f => ({ ...f, scoreMin: e.target.value })); setPage(1); }} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC" }} />
-                    <input type="number" placeholder="Max" value={filters.scoreMax} onChange={e => { setFilters(f => ({ ...f, scoreMax: e.target.value })); setPage(1); }} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC" }} />
-                  </div>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Tutar Aralığı</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input type="number" placeholder="Min" value={filters.amountMin} onChange={e => { setFilters(f => ({ ...f, amountMin: e.target.value })); setPage(1); }} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC" }} />
-                    <input type="number" placeholder="Max" value={filters.amountMax} onChange={e => { setFilters(f => ({ ...f, amountMax: e.target.value })); setPage(1); }} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC" }} />
-                  </div>
-                </div>
-                <div style={{ gridColumn: "span 2" }}>
-                  <label style={{ fontSize: 11.5, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Tarih Aralığı</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC" }} />
-                    <span style={{ display: "flex", alignItems: "center", color: C.textSecondary, fontSize: 12 }}>—</span>
-                    <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12.5, outline: "none", background: "#F8FAFC" }} />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <FilterBar.Panel onReset={resetFilters} style={{ marginBottom: 16 }}>
+              <FilterBar.ChipGroup
+                label="İŞARETLENME DURUMU"
+                options={Object.entries(STATUS_STYLES).map(([k, cfg]) => ({ key: k, ...cfg }))}
+                selected={filters.markStatus}
+                onToggle={k => { setFilters(f => ({ ...f, markStatus: f.markStatus.includes(k) ? f.markStatus.filter(x => x !== k) : [...f.markStatus, k] })); setPage(1); }}
+              />
+              <FilterBar.Select
+                label="VARLIK TÜRÜ"
+                value={filters.entityType}
+                onChange={e => { setFilters(f => ({ ...f, entityType: e.target.value, entityId: "" })); setPage(1); }}
+                options={[
+                  { value: "", label: "Tümü" },
+                  { value: "Customer", label: "Müşteri" },
+                  { value: "Account", label: "Hesap" },
+                  { value: "Card", label: "Kart" },
+                  { value: "Device", label: "Cihaz" },
+                ]}
+              />
+              {filters.entityType && (
+                <FilterBar.Input
+                  label={{ Customer: "MÜŞTERİ", Account: "HESAP", Card: "KART", Device: "CİHAZ" }[filters.entityType] + " ID"}
+                  value={filters.entityId}
+                  onChange={e => { setFilters(f => ({ ...f, entityId: e.target.value })); setPage(1); }}
+                  placeholder={`${{ Customer: "Müşteri", Account: "Hesap", Card: "Kart", Device: "Cihaz" }[filters.entityType]} ID giriniz...`}
+                />
+              )}
+              <FilterBar.NumberRange
+                label="FRAUD SKORU ARALIĞI"
+                min={filters.scoreMin}
+                max={filters.scoreMax}
+                onMinChange={e => { setFilters(f => ({ ...f, scoreMin: e.target.value })); setPage(1); }}
+                onMaxChange={e => { setFilters(f => ({ ...f, scoreMax: e.target.value })); setPage(1); }}
+              />
+              <FilterBar.NumberRange
+                label="TUTAR ARALIĞI"
+                min={filters.amountMin}
+                max={filters.amountMax}
+                onMinChange={e => { setFilters(f => ({ ...f, amountMin: e.target.value })); setPage(1); }}
+                onMaxChange={e => { setFilters(f => ({ ...f, amountMax: e.target.value })); setPage(1); }}
+              />
+              <FilterBar.DateRange
+                label="TARİH ARALIĞI"
+                from={filters.dateFrom}
+                to={filters.dateTo}
+                onFromChange={e => { setFilters(f => ({ ...f, dateFrom: e.target.value })); setPage(1); }}
+                onToChange={e => { setFilters(f => ({ ...f, dateTo: e.target.value })); setPage(1); }}
+              />
+            </FilterBar.Panel>
           )}
 
           {/* Results count */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontSize: 12.5, color: C.textSecondary }}>
-              <strong style={{ color: C.text }}>{filtered.length}</strong> işlem bulundu
+              <strong style={{ color: C.text }}>{totalCount}</strong> işlem bulundu
               {searchQuery && <span> — "{searchQuery}" araması</span>}
             </div>
           </div>
@@ -615,8 +401,9 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.length === 0 && <tr><td colSpan={tableCols.length + 1} style={{ padding: "48px 20px", textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Arama kriterlerine uygun işlem bulunamadı.</td></tr>}
-                  {paginated.map(txn => {
+                  {loading && <tr><td colSpan={tableCols.length + 1} style={{ padding: "48px 20px", textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Yükleniyor...</td></tr>}
+                  {!loading && paginated.length === 0 && <tr><td colSpan={tableCols.length + 1} style={{ padding: "48px 20px", textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Arama kriterlerine uygun işlem bulunamadı.</td></tr>}
+                  {!loading && paginated.map(txn => {
                     const sevStyle = SEVERITY_STYLES[txn.severity];
                     const statusStyle = STATUS_STYLES[txn.markStatus];
                     const displayAmount = displayCurrency === "original" ? txn.amount : convertAmount(txn.amount, txn.currency, displayCurrency);
@@ -626,11 +413,6 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
                         onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                         <td style={{ padding: "11px 14px", fontWeight: 600, color: C.primaryLight, fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5 }}>{txn.id}</td>
                         <td style={{ padding: "11px 14px" }}><div style={{ fontSize: 12.5, fontWeight: 500, color: C.text }}>{txn.customerName}</div><div style={{ fontSize: 10.5, color: C.textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>{txn.customerNo}</div></td>
-                        <td style={{ padding: "11px 14px" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: `${txn.sourceColor}15`, color: txn.sourceColor, border: `1px solid ${txn.sourceColor}30` }}>
-                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: txn.sourceColor }} />{txn.sourceLabel.split(" ")[0]}
-                          </span>
-                        </td>
                         <td style={{ padding: "11px 14px", fontSize: 12.5, color: C.text }}>{txn.entityType}</td>
                         <td style={{ padding: "11px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.text }}>{txn.entityKey}</td>
                         <td style={{ padding: "11px 14px" }}>
@@ -639,10 +421,9 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
                             <span style={{ fontSize: 11.5, fontWeight: 600, color: sevStyle.color, fontFamily: "'JetBrains Mono', monospace" }}>{txn.score}</span>
                           </div>
                         </td>
-                        <td style={{ padding: "11px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: C.textSecondary }}>{txn.triggerRule}</td>
                         <td style={{ padding: "11px 14px" }}><Badge config={statusStyle} /></td>
                         <td style={{ padding: "11px 14px", fontSize: 12, color: C.textSecondary }}>{txn.createDate}</td>
-                        <td style={{ padding: "11px 14px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, fontWeight: 600, color: C.text }}>
+                        <td style={{ padding: "11px 14px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, fontWeight: 600, color: sevStyle.color }}>
                           {formatCurrency(displayAmount, displayCurr)}
                           {displayCurrency === "original" && <div style={{ fontSize: 9.5, color: C.textSecondary, fontWeight: 400 }}>{txn.currency}</div>}
                         </td>
@@ -663,7 +444,7 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
                 </select>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ fontSize: 12.5, color: C.textSecondary, marginRight: 8 }}>{(page - 1) * perPage + 1}–{Math.min(page * perPage, sorted.length)} / {sorted.length}</span>
+                <span style={{ fontSize: 12.5, color: C.textSecondary, marginRight: 8 }}>{(page - 1) * perPage + 1}–{Math.min(page * perPage, totalCount)} / {totalCount}</span>
                 {(() => {
                   const pgBtn = { width: 30, height: 30, borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: C.textSecondary };
                   const pages = []; const maxV = 5;
@@ -671,9 +452,11 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
                   if (end - start < maxV - 1) start = Math.max(1, end - maxV + 1);
                   for (let p = start; p <= end; p++) pages.push(p);
                   return (<>
+                    <button onClick={() => setPage(1)} disabled={page === 1} style={{ ...pgBtn, opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? "not-allowed" : "pointer", fontSize: 11 }}>⏮</button>
                     <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ ...pgBtn, opacity: page === 1 ? 0.4 : 1, cursor: page === 1 ? "not-allowed" : "pointer", transform: "rotate(180deg)" }}><Icons.ChevronRight /></button>
                     {pages.map(p => <button key={p} onClick={() => setPage(p)} style={{ ...pgBtn, background: page === p ? C.primary : "#fff", color: page === p ? "#fff" : C.textSecondary, fontWeight: page === p ? 700 : 500, border: page === p ? "none" : `1px solid ${C.border}` }}>{p}</button>)}
                     <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ ...pgBtn, opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? "not-allowed" : "pointer" }}><Icons.ChevronRight /></button>
+                    <button onClick={() => setPage(totalPages)} disabled={page === totalPages} style={{ ...pgBtn, opacity: page === totalPages ? 0.4 : 1, cursor: page === totalPages ? "not-allowed" : "pointer", fontSize: 11 }}>⏭</button>
                   </>);
                 })()}
               </div>

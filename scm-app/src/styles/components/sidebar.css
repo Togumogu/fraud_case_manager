@@ -1,0 +1,62 @@
+/* ═══════════════════════════════════════════════════════════
+   SADE SCM — Sidebar
+   Sidebar uses always-on dark branding — not theme-toggled.
+═══════════════════════════════════════════════════════════ */
+
+.scm-sidebar {
+  width: var(--sidebar-width);
+  background: var(--color-bg-sidebar);
+  display: flex;
+  flex-direction: column;
+  transition: width var(--transition-sidebar);
+  flex-shrink: 0;
+  z-index: 100;
+  position: relative;
+}
+
+.scm-sidebar--collapsed {
+  width: var(--sidebar-collapsed);
+}
+
+.scm-sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: var(--radius-lg);
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: #94A3B8;
+  transition: all var(--transition-fast);
+}
+
+.scm-sidebar-nav-btn:hover {
+  background: var(--sidebar-hover-bg);
+}
+
+.scm-sidebar-nav-btn--active {
+  background: rgba(59,130,246,0.15);
+  color: #60A5FA;
+}
+
+.scm-sidebar-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-lg);
+  border: none;
+  background: rgba(255,255,255,0.06);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94A3B8;
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+}
+
+.scm-sidebar-icon-btn:hover {
+  background: rgba(255,255,255,0.12);
+}

@@ -1,0 +1,149 @@
+/* ═══════════════════════════════════════════════════════════
+   SADE SCM — Table
+═══════════════════════════════════════════════════════════ */
+
+@keyframes scm-tbl-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.scm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
+  font-family: var(--font-ui);
+}
+
+.scm-table thead tr {
+  background: var(--color-table-header-bg);
+}
+
+.scm-table th {
+  padding: 11px 12px 7px;
+  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
+  letter-spacing: 0.03em;
+  border-bottom: 2px solid var(--color-border);
+  white-space: nowrap;
+  user-select: none;
+  transition: color var(--transition-fast);
+}
+
+.scm-table th.sortable {
+  cursor: pointer;
+}
+
+.scm-table th.active {
+  color: var(--color-primary-light);
+}
+
+.scm-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.scm-tbody tr {
+  background: transparent;
+  transition: background var(--transition-fast);
+}
+
+.scm-tbody tr:hover {
+  background: var(--color-table-hover-bg);
+}
+
+.scm-tbody tr[aria-selected="true"] {
+  background: var(--color-table-selected-bg);
+  box-shadow: inset 3px 0 0 var(--color-table-selected-accent);
+}
+
+.scm-tbody tr:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-primary-light) !important;
+}
+
+.scm-tbl-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  font-size: var(--text-sm);
+  border-radius: 5px;
+  border: 1px solid var(--color-border);
+  outline: none;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  transition: border-color var(--transition-fast);
+}
+
+.scm-tbl-search-input:focus {
+  border-color: var(--color-primary-light);
+}
+
+.scm-tbl-shimmer-bg {
+  display: inline-block;
+  background: linear-gradient(90deg, #EDF2F7 25%, #E2E8F0 50%, #EDF2F7 75%);
+  background-size: 1200px 100%;
+  animation: scm-tbl-shimmer 1.5s ease-in-out infinite;
+}
+
+.scm-table-pagination {
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+}
+
+.scm-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+  font-family: var(--font-ui);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.scm-pagination-btn--active {
+  border: 1.5px solid var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.scm-pagination-btn:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.scm-per-page-select {
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  font-size: 12px;
+  outline: none;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scm-tbody tr       { transition: none !important; }
+  .scm-tbl-shimmer-bg { animation: none !important; }
+}

@@ -1,0 +1,104 @@
+/* ═══════════════════════════════════════════════════════════
+   SADE SCM — Toast Notifications
+═══════════════════════════════════════════════════════════ */
+
+.scm-toast-stack {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.scm-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 16px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  min-width: 280px;
+  max-width: 420px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  pointer-events: auto;
+  animation: scm-toast-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 13.5px;
+  font-family: var(--font-ui, 'DM Sans', sans-serif);
+  line-height: 1.5;
+}
+
+@keyframes scm-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(110%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.scm-toast--success {
+  background: #ECFDF5;
+  border-color: #A7F3D0;
+  color: #065F46;
+}
+
+.scm-toast--error {
+  background: #FEF2F2;
+  border-color: #FECACA;
+  color: #991B1B;
+}
+
+.scm-toast--warning {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+  color: #92400E;
+}
+
+.scm-toast--info {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+  color: #1E40AF;
+}
+
+.scm-toast__icon {
+  font-size: 15px;
+  font-weight: 700;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+  margin-top: 1px;
+}
+
+.scm-toast__msg {
+  flex: 1;
+  font-weight: 500;
+}
+
+.scm-toast__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 0 0 4px;
+  opacity: 0.55;
+  color: inherit;
+  flex-shrink: 0;
+  margin-top: -1px;
+  transition: opacity 0.15s;
+}
+
+.scm-toast__close:hover {
+  opacity: 1;
+}
+
+/* Dark mode */
+[data-theme="dark"] .scm-toast--success { background: #064E3B; border-color: #059669; color: #6EE7B7; }
+[data-theme="dark"] .scm-toast--error   { background: #7F1D1D; border-color: #DC2626; color: #FCA5A5; }
+[data-theme="dark"] .scm-toast--warning { background: #78350F; border-color: #D97706; color: #FCD34D; }
+[data-theme="dark"] .scm-toast--info    { background: #1E3A8A; border-color: #3B82F6; color: #93C5FD; }

@@ -1,0 +1,19 @@
+/* ═══════════════════════════════════════════════════════════
+   SADE SCM — Barrel Import
+   Order matters: tokens first, then reset, typography,
+   layout, then components.
+═══════════════════════════════════════════════════════════ */
+
+@import "./tokens.css";
+@import "./reset.css";
+@import "./typography.css";
+@import "./layout.css";
+@import "./components/card.css";
+@import "./components/button.css";
+@import "./components/badge.css";
+@import "./components/table.css";
+@import "./components/form.css";
+@import "./components/modal.css";
+@import "./components/sidebar.css";
+@import "./components/filter.css";
+@import "./components/toast.css";

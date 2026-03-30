@@ -84,9 +84,24 @@ Every component has these standard states: `darkMode`, `showUserMenu`, `showNoti
 
 ## Styling
 
-100% inline CSS — no CSS files, no UI libraries, no Tailwind. Style constants defined per-file as `const COLORS = {...}` or `const C = {...}`.
+CSS custom properties (CSS variables) via `src/styles/` directory — **no UI libraries, no Tailwind**. Legacy pages still have `const COLORS`/`const C` inline constants; these are replaced gradually.
 
-**Design system:** dark sidebar `#0F172A`, blue primary `#1E40AF`/`#3B82F6`, amber accent `#F59E0B`, light gray background `#F1F5F9`. Fonts: **DM Sans** for UI, **JetBrains Mono** for IDs/amounts/data fields. Loaded via Google Fonts `<link>` tag inside the render.
+**Design tokens:** defined in `src/styles/tokens.css` — two-layer system (primitives → semantic). Dark mode via `[data-theme="dark"]` on `<html>`. Dark mode state owned by `Sidebar.jsx` (reads/writes `localStorage("scm-theme")`).
+
+**Design system:** dark sidebar `#0F172A` (always-on), blue primary `var(--color-primary)` = `#1E40AF`, amber accent `#F59E0B`, light gray background `var(--color-bg-app)` = `#F1F5F9`. Fonts: **DM Sans** for UI, **JetBrains Mono** for IDs/amounts/data fields — loaded once in `src/styles/typography.css`.
+
+**Shared components in `src/components/`:**
+- `Badge.jsx` — exports `SEVERITY_CONFIG`, `STATUS_CONFIG`, `MARK_STATUS_CONFIG` for use in filter chips
+- `Card.jsx`, `Modal.jsx`, `Table.jsx`, `Sidebar.jsx` — CSS-class-driven (no `injectStyles()`)
+- `SearchInput.jsx` — controlled search input with magnifier icon + animated clear button. Props: `value`, `onChange`, `placeholder`, `size` (sm/md/lg), `disabled`, `className`, `style`
+- `FilterBar.jsx` — composable filter system exported as namespace object:
+  - `FilterBar.Toggle` — filter button with badge count; props: `open`, `onToggle`, `activeCount`
+  - `FilterBar.Panel` — collapsible container; props: `onReset`, `children`, `style`
+  - `FilterBar.ChipGroup` — multi-select toggle chips; props: `label`, `options[]` ({key,label,bg,color,border}), `selected[]`, `onToggle`
+  - `FilterBar.Select` — dropdown; props: `label`, `value`, `onChange`, `options[]` ({value,label})
+  - `FilterBar.Input` — text field; props: `label`, `value`, `onChange`, `placeholder`
+  - `FilterBar.DateRange` — from/to date pair; props: `label`, `from`, `to`, `onFromChange`, `onToChange`
+  - `FilterBar.NumberRange` — min/max numeric pair; props: `label`, `min`, `max`, `onMinChange`, `onMaxChange`
 
 ## Key Patterns
 
@@ -96,7 +111,7 @@ Every page component contains its own full sidebar. When adding a new nav item, 
 
 **`SCM_CaseList.jsx` is special**: uses three arrays — `navItems` (top), `casesSubItems` (expandable under "Vaka Listesi"), `bottomNav` (bottom). New cross-module nav items go into `bottomNav`.
 
-Sidebar bottom section contains: clickable profile avatar/name (toggles `showUserMenu` dropdown with "Çıkış Yap"), dark mode toggle button (moon/sun), notification bell. Dark mode applies `filter: invert(1) hue-rotate(180deg)` to the root wrapper div.
+Sidebar bottom section contains: clickable profile avatar/name (toggles `showUserMenu` dropdown with "Çıkış Yap"), dark mode toggle button (moon/sun), notification bell. Dark mode is managed by `Sidebar.jsx` internally — sets `document.documentElement.dataset.theme` and writes to `localStorage("scm-theme")`. Pages no longer hold `darkMode` state.
 
 ### Icons
 

@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import Sidebar from "../components/Sidebar";
+import SearchInput from "../components/SearchInput";
+import FilterBar from "../components/FilterBar";
+import { approvals as approvalsApi, cases as casesApi } from "../api/client";
 
 // ═══════════════════════════════════════════════════════════════
 // MOCK DATA
@@ -33,6 +37,8 @@ const STATUS_CONFIG = {
   Open: { label: "Open", bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" },
   Closed: { label: "Closed", bg: "#D1FAE5", color: "#065F46", border: "#A7F3D0" },
   "Pending Closure": { label: "Pending Closure", bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
+  "Pending Reopen": { label: "Pending Reopen", bg: "#EDE9FE", color: "#5B21B6", border: "#DDD6FE" },
+  "Pending Delete": { label: "Pending Delete", bg: "#FEE2E2", color: "#991B1B", border: "#FECACA" },
   Deleted: { label: "Deleted", bg: "#FEE2E2", color: "#991B1B", border: "#FECACA" },
 };
 const SEVERITY_CONFIG = {
@@ -104,6 +110,7 @@ const Icons = {
   Moon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
   Sun: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
   LogOut: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  Globe: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
 };
 
 const COLORS = {
@@ -120,7 +127,7 @@ const colInputStyle = { width: "100%", padding: "5px 7px", borderRadius: 5, font
 // ═══════════════════════════════════════════════════════════════
 // DRAWER (no Düzenle button)
 // ═══════════════════════════════════════════════════════════════
-const CaseDrawer = ({ caseData, onClose }) => {
+const CaseDrawer = ({ caseData, onClose, onNavigate }) => {
   if (!caseData) return null;
   return (
     <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 440, background: "#fff", boxShadow: "-8px 0 30px rgba(0,0,0,0.12)", zIndex: 1000, display: "flex", flexDirection: "column", animation: "slideIn 0.25s ease-out" }}>
@@ -140,7 +147,7 @@ const CaseDrawer = ({ caseData, onClose }) => {
             <span style={{ fontWeight: 600, color: v === "Atanmamış" ? COLORS.warning : COLORS.text }}>{v}</span>
           </div>
         ))}
-        <button style={{ width: "100%", marginTop: 24, padding: "10px 16px", background: COLORS.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Detayları Gör</button>
+        <button onClick={() => { onClose(); if (onNavigate) onNavigate("case_detail", caseData); }} style={{ width: "100%", marginTop: 24, padding: "10px 16px", background: COLORS.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Detayları Gör</button>
       </div>
     </div>
   );
@@ -149,19 +156,13 @@ const CaseDrawer = ({ caseData, onClose }) => {
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function SCMCaseList({ onNavigate } = {}) {
-  const [currentRole, setCurrentRole] = useState("manager");
+export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading = false, onCaseUpdated, initialNavKey = "cases", currentRole = "analyst", onRoleChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead, showToast } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [cases] = useState(generateCases);
+  const cases = casesProp ?? [];
   const [selectedDomain, setSelectedDomain] = useState("payment");
-  const [domainMenuOpen, setDomainMenuOpen] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const [activeView, setActiveView] = useState("case_list");
-  const [casesMenuOpen, setCasesMenuOpen] = useState(true);
-  const [activeNav, setActiveNav] = useState("cases");
+  const NAVKEY_TO_VIEW = { cases: "case_list", my_cases: "my_cases", pending_approvals: "approvals", deleted_cases: "deleted" };
+  const [activeView, setActiveView] = useState(NAVKEY_TO_VIEW[initialNavKey] || "case_list");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -187,10 +188,49 @@ export default function SCMCaseList({ onNavigate } = {}) {
     document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+
+  useEffect(() => {
+    approvalsApi.list({ status: 'pending' }).then(rows => setPendingApprovals(rows.map(a => ({
+      id: a.id,
+      type: a.type,
+      caseId: a.case_id,
+      caseName: a.case_name,
+      requestedBy: a.requested_by,
+      requestedAt: a.requested_at ? String(a.requested_at).replace('T', ' ').slice(0, 16) : '—',
+      reason: a.reason,
+      severity: a.severity,
+    })))).catch((err) => {
+      if (showToast) showToast("error", err?.message || "Onay listesi yüklenemedi");
+    });
+  }, []);
+
+  const handleApproval = (approval, approved) => {
+    let newStatus;
+    if (approval.type === 'case_reopen') {
+      newStatus = approved ? 'Open' : 'Closed';
+    } else if (approval.type === 'case_delete') {
+      newStatus = approved ? 'Deleted' : 'Open';
+    } else {
+      newStatus = approved ? 'Closed' : 'Open';
+    }
+    approvalsApi.update(approval.id, { status: approved ? 'approved' : 'rejected', approved_by: currentRole })
+      .catch((err) => { if (showToast) showToast("error", err?.message || "Onay güncellenemedi"); });
+    casesApi.update(approval.caseId, { status: newStatus, update_user: currentRole })
+      .catch((err) => { if (showToast) showToast("error", err?.message || "Vaka durumu güncellenemedi"); });
+    if (onCaseUpdated) {
+      const lc = cases.find(c => c.id === approval.caseId);
+      if (lc) onCaseUpdated({ ...lc, status: newStatus });
+    }
+    setPendingApprovals(prev => prev.filter(a => a.id !== approval.id));
+    if (showToast) showToast("success", approved ? "Onay verildi" : "Onay reddedildi");
+  };
+
   const viewMap = { case_list: ["Vaka Listesi", "Case List"], my_cases: ["Vakalarım", "My Cases"], reviews: ["İncelemem İçin Gönderilenler", "Pending Reviews"], approvals: ["Onay Bekleyenler", "Pending Approvals"], deleted: ["Silinmiş Vakalar", "Deleted Cases"] };
   const [viewTitle, viewSub] = viewMap[activeView] || viewMap.case_list;
 
-  const baseCases = activeView === "case_list" ? cases.filter(c => c.status !== "Deleted") : activeView === "my_cases" ? cases.filter(c => c.owner === user.name && c.status !== "Deleted") : activeView === "deleted" ? cases.filter(c => c.status === "Deleted") : cases.filter(c => c.status !== "Deleted");
+  const isHidden = c => c.status === "Deleted" || c.status === "Pending Delete";
+  const baseCases = activeView === "case_list" ? cases.filter(c => !isHidden(c)) : activeView === "my_cases" ? cases.filter(c => c.owner === user.name && !isHidden(c)) : activeView === "deleted" ? cases.filter(c => c.status === "Deleted" || c.status === "Pending Delete") : cases.filter(c => !isHidden(c));
 
   const filteredCases = baseCases.filter(c => {
     if (searchTerm.length >= 2) { const s = searchTerm.toLowerCase(); if (!String(c.id).includes(s) && !c.name.toLowerCase().includes(s) && !(c.owner || "").toLowerCase().includes(s)) return false; }
@@ -223,24 +263,7 @@ export default function SCMCaseList({ onNavigate } = {}) {
   const toggleSelectAll = () => { const pageIds = paginated.map(c => c.id); const allSelected = pageIds.every(id => selectedCases.has(id)); setSelectedCases(prev => { const next = new Set(prev); pageIds.forEach(id => allSelected ? next.delete(id) : next.add(id)); return next; }); };
   const allPageSelected = paginated.length > 0 && paginated.every(c => selectedCases.has(c.id));
 
-  const sW = sidebarCollapsed ? 72 : 260;
   const isCaseTable = ["case_list", "my_cases", "deleted"].includes(activeView);
-
-  const navItems = [
-    { key: "dashboard", label: "Dashboard", sublabel: "Ana Sayfa", icon: <Icons.Dashboard /> },
-    { key: "case_creation", label: "Vaka Oluşturma", sublabel: "Case Creation", icon: <Icons.CaseCreate /> },
-  ];
-  const casesSubItems = [
-    { key: "my_cases", label: "Vakalarım", sublabel: "My Cases", icon: <Icons.MyCases />, count: cases.filter(c => c.owner === user.name && c.status !== "Deleted").length },
-    { key: "reviews", label: "İncelemem İçin Gönderilenler", sublabel: "Pending Reviews", icon: <Icons.Review />, count: REVIEW_REQUESTS.length },
-    { key: "approvals", label: "Onay Bekleyenler", sublabel: "Pending Approvals", icon: <Icons.Approval />, count: isManager ? PENDING_APPROVALS.length : 0, show: isManager },
-    { key: "deleted", label: "Silinmiş Vakalar", sublabel: "Deleted Cases", icon: <Icons.DeletedCases />, count: cases.filter(c => c.status === "Deleted").length },
-  ];
-  const bottomNav = [
-    { key: "txn_search", label: "İşlem Arama", sublabel: "Transaction Search", icon: <Icons.TransactionSearch /> },
-    { key: "reports", label: "Raporlar", sublabel: "Reports", icon: <Icons.Reports /> },
-    ...(currentRole === "admin" ? [{ key: "settings", label: "Ayarlar", sublabel: "Settings", icon: <Icons.Settings /> }] : []),
-  ];
 
   const tableCols = [
     { key: "_check", label: "", w: 40 },
@@ -254,177 +277,37 @@ export default function SCMCaseList({ onNavigate } = {}) {
     { key: "totalAmount", label: displayCurrency === "original" ? "Toplam Tutar" : `Toplam Tutar (${displayCurrency})`, w: 150, type: "text", align: "right" },
   ];
 
-  const SideNavBtn = ({ item, active, onClick }) => (
-    <button onClick={onClick} title={sidebarCollapsed ? item.label : undefined} style={{
-      display: "flex", alignItems: "center", gap: 12, padding: sidebarCollapsed ? "12px 16px" : "10px 16px",
-      borderRadius: 8, border: "none", cursor: "pointer", width: "100%", textAlign: "left",
-      background: active ? "rgba(59,130,246,0.15)" : "transparent", color: active ? "#60A5FA" : "#94A3B8",
-      transition: "all 0.15s ease", justifyContent: sidebarCollapsed ? "center" : "flex-start",
-    }}
-      onMouseEnter={e => { if (!active) e.currentTarget.style.background = COLORS.sidebarHover; }}
-      onMouseLeave={e => { if (!active) e.currentTarget.style.background = active ? "rgba(59,130,246,0.15)" : "transparent"; }}
-    >
-      <span style={{ flexShrink: 0, display: "flex" }}>{item.icon}</span>
-      {!sidebarCollapsed && <div><div style={{ fontSize: 13.5, fontWeight: active ? 600 : 500, lineHeight: 1.3 }}>{item.label}</div><div style={{ fontSize: 10.5, color: "#475569", lineHeight: 1.2 }}>{item.sublabel}</div></div>}
-    </button>
-  );
+  // Sidebar için aktif sayfa anahtarını türet
+  const VIEW_TO_NAVKEY = { case_list: "cases", my_cases: "my_cases", reviews: "reviews", approvals: "pending_approvals", deleted: "deleted_cases" };
+  const sidebarActivePage = VIEW_TO_NAVKEY[activeView] || "cases";
+
+  // Sidebar navigasyon — alt görünümler bu sayfada iç, diğerleri dışarı
+  const handleNavigation = (key, data) => {
+    const viewMap = { my_cases: "my_cases", pending_approvals: "approvals", deleted_cases: "deleted", cases: "case_list" };
+    if (viewMap[key] !== undefined) {
+      changeView(viewMap[key]);
+    } else if (onNavigate) {
+      onNavigate(key, data);
+    }
+  };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: COLORS.bg, fontFamily: "'DM Sans', 'Segoe UI', -apple-system, sans-serif", ...(darkMode ? {filter:"invert(1) hue-rotate(180deg)"} : {}) }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
-      {/* ════════════ SIDEBAR (Dashboard-matching) ════════════ */}
-      <aside style={{ width: sW, background: COLORS.sidebar, display: "flex", flexDirection: "column", transition: "width 0.3s cubic-bezier(0.4,0,0.2,1)", flexShrink: 0, zIndex: 100, position: "relative" }}>
-        {/* Logo */}
-        <div style={{ padding: sidebarCollapsed ? "20px 16px" : "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, minHeight: 72 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>S</div>
-          {!sidebarCollapsed && <div style={{ overflow: "hidden" }}><div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>SADE SCM</div><div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div></div>}
-        </div>
-
-        {/* Domain Seçimi */}
-        <div style={{ padding: sidebarCollapsed ? "10px 8px" : "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          {!sidebarCollapsed && <div style={{ fontSize: 10, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, padding: "0 4px" }}>Domain Seçimi</div>}
-          <div style={{ position: "relative" }}>
-            <button onClick={() => setDomainMenuOpen(!domainMenuOpen)} style={{
-              width: "100%", display: "flex", alignItems: "center", gap: 10, padding: sidebarCollapsed ? "8px" : "8px 12px",
-              borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
-              cursor: "pointer", color: "#E2E8F0", transition: "all 0.15s ease", justifyContent: sidebarCollapsed ? "center" : "space-between",
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-              onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 14 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.icon}</span>
-                {!sidebarCollapsed && <span style={{ fontSize: 12.5, fontWeight: 500 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label}</span>}
-              </div>
-              {!sidebarCollapsed && <span style={{ transition: "transform 0.2s", transform: domainMenuOpen ? "rotate(180deg)" : "rotate(0deg)", display: "flex", color: "#64748B" }}><Icons.ChevronDown /></span>}
-            </button>
-            {domainMenuOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: sidebarCollapsed ? 8 : 0, width: sidebarCollapsed ? 200 : "100%", background: "#1E293B", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 12px 40px rgba(0,0,0,0.4)", zIndex: 300, overflow: "hidden" }}>
-                {FRAUD_DOMAINS.map(d => (
-                  <div key={d.id} onClick={() => { setSelectedDomain(d.id); setDomainMenuOpen(false); }} style={{
-                    padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                    background: selectedDomain === d.id ? "rgba(59,130,246,0.15)" : "transparent",
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.background = selectedDomain === d.id ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.05)"}
-                    onMouseLeave={e => e.currentTarget.style.background = selectedDomain === d.id ? "rgba(59,130,246,0.15)" : "transparent"}
-                  >
-                    <span style={{ fontSize: 13 }}>{d.icon}</span>
-                    <span style={{ fontSize: 12.5, fontWeight: selectedDomain === d.id ? 600 : 400, color: selectedDomain === d.id ? "#60A5FA" : "#CBD5E1" }}>{d.label}</span>
-                    {selectedDomain === d.id && <span style={{ marginLeft: "auto", color: "#60A5FA", display: "flex" }}><Icons.Check /></span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
-          {navItems.map(i => <SideNavBtn key={i.key} item={i} active={activeNav === i.key} onClick={() => { setActiveNav(i.key); setCasesMenuOpen(false); if (onNavigate) onNavigate(i.key); }} />)}
-
-          {/* Vaka Listesi + sub */}
-          <button onClick={() => { setActiveNav("cases"); if (!sidebarCollapsed) setCasesMenuOpen(o => !o); changeView("case_list"); }} title={sidebarCollapsed ? "Vaka Listesi" : undefined} style={{
-            display: "flex", alignItems: "center", gap: 12, padding: sidebarCollapsed ? "12px 16px" : "10px 16px",
-            borderRadius: 8, border: "none", cursor: "pointer", width: "100%", textAlign: "left",
-            background: activeNav === "cases" ? "rgba(59,130,246,0.15)" : "transparent", color: activeNav === "cases" ? "#60A5FA" : "#94A3B8",
-            transition: "all 0.15s ease", justifyContent: sidebarCollapsed ? "center" : "flex-start",
-          }}
-            onMouseEnter={e => { if (activeNav !== "cases") e.currentTarget.style.background = COLORS.sidebarHover; }}
-            onMouseLeave={e => { if (activeNav !== "cases") e.currentTarget.style.background = activeNav === "cases" ? "rgba(59,130,246,0.15)" : "transparent"; }}
-          >
-            <span style={{ flexShrink: 0, display: "flex" }}><Icons.Cases /></span>
-            {!sidebarCollapsed && <>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.3 }}>Vaka Listesi</div><div style={{ fontSize: 10.5, color: "#475569", lineHeight: 1.2 }}>Case List</div></div>
-              <span style={{ transition: "transform 0.2s", transform: casesMenuOpen ? "rotate(0deg)" : "rotate(-90deg)", display: "flex", color: "#64748B" }}><Icons.ChevronDown /></span>
-            </>}
-          </button>
-          {casesMenuOpen && !sidebarCollapsed && (
-            <div style={{ marginLeft: 20, borderLeft: "2px solid rgba(255,255,255,0.1)", marginBottom: 6 }}>
-              {casesSubItems.filter(s => s.show !== false).map(sub => (
-                <div key={sub.key} style={{
-                  display: "flex", alignItems: "center", gap: 9, padding: "7px 10px 7px 14px", borderRadius: 8, marginBottom: 1, cursor: "pointer",
-                  background: activeView === sub.key ? "rgba(59,130,246,0.15)" : "transparent", color: activeView === sub.key ? "#60A5FA" : "#94A3B8",
-                }}
-                  onClick={e => { e.stopPropagation(); setActiveNav("cases"); changeView(sub.key); }}
-                  onMouseEnter={e => { if (activeView !== sub.key) e.currentTarget.style.background = COLORS.sidebarHover; }}
-                  onMouseLeave={e => { if (activeView !== sub.key) e.currentTarget.style.background = activeView === sub.key ? "rgba(59,130,246,0.15)" : "transparent"; }}
-                >
-                  <span style={{ flexShrink: 0, display: "flex", opacity: activeView === sub.key ? 1 : 0.6 }}>{sub.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: activeView === sub.key ? 600 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub.label}</div>
-                    <div style={{ fontSize: 9, color: "#475569" }}>{sub.sublabel}</div>
-                  </div>
-                  {sub.count > 0 && <span style={{ minWidth: 20, height: 18, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, padding: "0 5px", background: "rgba(255,255,255,0.1)", color: "#fff", flexShrink: 0 }}>{sub.count}</span>}
-                </div>
-              ))}
-            </div>
-          )}
-          {bottomNav.map(i => <SideNavBtn key={i.key} item={i} active={activeNav === i.key} onClick={() => { setActiveNav(i.key); setCasesMenuOpen(false); if (onNavigate) onNavigate(i.key); }} />)}
-        </nav>
-
-        {/* User + Notifications */}
-        <div style={{ padding: sidebarCollapsed ? "16px 8px" : "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
-            <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg, #6366F1, #8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-              {user.name.split(" ").map(n => n[0]).join("")}
-            </div>
-            {!sidebarCollapsed && <div onClick={() => setShowUserMenu(!showUserMenu)} style={{ flex: 1, overflow: "hidden", cursor: "pointer" }}><div style={{ color: "#E2E8F0", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{user.name}</div><div style={{ color: "#64748B", fontSize: 11 }}>{user.roleLabel}</div></div>}
-            {/* Dark Mode Toggle */}
-            <button onClick={e => { e.stopPropagation(); setDarkMode(d => !d); }} title={darkMode ? "Açık Mod" : "Koyu Mod"} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8", flexShrink: 0 }}>
-              {darkMode ? <Icons.Sun /> : <Icons.Moon />}
-            </button>
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications); }} style={{
-                width: 34, height: 34, borderRadius: 8, border: "none", background: showNotifications ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)",
-                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: showNotifications ? "#60A5FA" : "#94A3B8",
-              }}
-                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-                onMouseLeave={e => e.currentTarget.style.background = showNotifications ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)"}
-              >
-                <Icons.Bell />
-                <span style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: "50%", background: COLORS.danger, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #0F172A" }}>3</span>
-              </button>
-              {showNotifications && (
-                <div onClick={e => e.stopPropagation()} style={{
-                  position: "fixed", bottom: 72, left: sidebarCollapsed ? 80 : 268, width: 360,
-                  background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`,
-                  boxShadow: "0 8px 40px rgba(0,0,0,0.18)", zIndex: 300, overflow: "hidden", color: COLORS.text,
-                }}>
-                  <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#F8FAFC" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontWeight: 700, fontSize: 15 }}>Bildirimler</span><span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: COLORS.danger, color: "#fff" }}>3 yeni</span></div>
-                    <span style={{ fontSize: 12, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 600 }}>Tümünü Okundu İşaretle</span>
-                  </div>
-                  <div style={{ maxHeight: 320, overflow: "auto" }}>
-                    {[{ msg: "Vaka #2469 için kapatma onayı bekliyor", time: "5 dk önce" }, { msg: "Vaka #2471 size atandı", time: "2 sa önce" }, { msg: "Elif Yılmaz review tamamladı (#2465)", time: "4 sa önce" }].map((n, i) => (
-                      <div key={i} style={{ padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, cursor: "pointer", background: "#FAFBFE", display: "flex", alignItems: "flex-start", gap: 12 }}
-                        onMouseEnter={e => e.currentTarget.style.background = "#F1F5F9"} onMouseLeave={e => e.currentTarget.style.background = "#FAFBFE"}>
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.primaryLight, flexShrink: 0, marginTop: 6 }} />
-                        <div style={{ flex: 1 }}><div style={{ fontSize: 13.5, lineHeight: 1.5, fontWeight: 500 }}>{n.msg}</div><div style={{ fontSize: 11.5, color: COLORS.textSecondary, marginTop: 3 }}>{n.time}</div></div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ padding: "12px 20px", borderTop: `1px solid ${COLORS.border}`, textAlign: "center", background: "#F8FAFC" }}><span style={{ fontSize: 12.5, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 600 }}>Tüm Bildirimleri Gör →</span></div>
-                </div>
-              )}
-            </div>
-          </div>
-          {showUserMenu && (
-            <div onClick={e => e.stopPropagation()} style={{ position: "fixed", bottom: 72, left: sidebarCollapsed ? 80 : 268, background: "#fff", borderRadius: 10, border: "1px solid #E2E8F0", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 180, zIndex: 400, overflow: "hidden" }}>
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid #E2E8F0", fontSize: 12, color: "#64748B" }}>{user.name}</div>
-              <button onClick={() => setShowUserMenu(false)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 16px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#EF4444", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.background = "#FEF2F2"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}><Icons.LogOut /> Çıkış Yap</button>
-            </div>
-          )}
-        </div>
-
-        {/* Collapse toggle */}
-        <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{
-          position: "absolute", top: 24, right: -14, width: 28, height: 28, borderRadius: "50%",
-          border: `2px solid ${COLORS.border}`, background: "#fff", cursor: "pointer", display: "flex",
-          alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.1)", zIndex: 101,
-          transition: "transform 0.3s ease", transform: sidebarCollapsed ? "rotate(0deg)" : "rotate(180deg)",
-        }}><Icons.ChevronRight /></button>
-      </aside>
+    <div className="scm-layout">
+      <Sidebar
+        activePage={sidebarActivePage}
+        onNavigate={handleNavigation}
+        user={USERS[currentRole]}
+        selectedDomain={selectedDomain}
+        onDomainChange={setSelectedDomain}
+        collapsed={sidebarCollapsed}
+        onCollapseToggle={() => setSidebarCollapsed(c => !c)}
+        myCasesCount={myCasesCount}
+        pendingApprovalsCount={pendingApprovalsCount}
+        reviewCount={reviewCount}
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        onMarkRead={onMarkRead}
+      />
 
       {/* ════════════ MAIN ════════════ */}
       <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -433,16 +316,17 @@ export default function SCMCaseList({ onNavigate } = {}) {
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
               {Object.entries(USERS).map(([k, u]) => (
-                <button key={k} onClick={() => { setCurrentRole(k); setPage(1); }} style={{
+                <button key={k} onClick={() => { onRoleChange && onRoleChange(k); setPage(1); }} style={{
                   padding: "6px 14px", fontSize: 11.5, fontWeight: 600, border: "none", cursor: "pointer", letterSpacing: "0.02em",
                   background: currentRole === k ? COLORS.primary : "#fff", color: currentRole === k ? "#fff" : COLORS.textSecondary,
-                }}>{u.roleLabel}</button>
+                }}>{u.role === "analyst" ? "Analist" : u.roleLabel}</button>
               ))}
             </div>
+            <button style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: `1px solid ${COLORS.border}`, background: "#fff", cursor: "pointer", fontSize: 12, color: COLORS.textSecondary }}><Icons.Globe /> TR</button>
           </div>
         </header>
 
-        <div style={{ padding: 28, flex: 1, overflowY: "auto" }} onClick={() => { setShowNotifications(false); setShowUserMenu(false); setDomainMenuOpen(false); }}>
+        <div style={{ padding: 28, flex: 1, overflowY: "auto" }}>
           {/* Reviews View */}
           {activeView === "reviews" && (
             <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
@@ -468,11 +352,14 @@ export default function SCMCaseList({ onNavigate } = {}) {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead><tr style={{ background: "#F8FAFC" }}>{["Tür", "Case ID", "Vaka Adı", "Talep Eden", "Tarih", "Neden", ""].map((h, i) => <th key={i} style={{ padding: "12px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: COLORS.textSecondary, borderBottom: `2px solid ${COLORS.border}` }}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {PENDING_APPROVALS.map(a => { const lc = cases.find(c => c.id === a.caseId); return (
+                  {pendingApprovals.length === 0 && (
+                    <tr><td colSpan={7} style={{ padding: "32px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: 13 }}>Onay bekleyen talep bulunmuyor.</td></tr>
+                  )}
+                  {pendingApprovals.map(a => { const lc = cases.find(c => c.id === a.caseId); return (
                     <tr key={a.id} style={{ borderBottom: `1px solid ${COLORS.border}`, cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = "#FAFBFC"} onMouseLeave={e => e.currentTarget.style.background = "transparent"} onClick={() => lc && onNavigate && onNavigate("case_detail", lc)}>
-                      <td style={{ padding: "12px 14px" }}><Badge config={a.type === "case_close" ? { label: "Kapatma", bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" } : { label: "Silme", bg: "#FEE2E2", color: "#991B1B", border: "#FECACA" }} /></td>
+                      <td style={{ padding: "12px 14px" }}><Badge config={a.type === "case_close" ? { label: "Kapatma", bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" } : a.type === "case_reopen" ? { label: "Yeniden Açma", bg: "#EDE9FE", color: "#5B21B6", border: "#DDD6FE" } : { label: "Silme", bg: "#FEE2E2", color: "#991B1B", border: "#FECACA" }} /></td>
                       <td style={{ padding: "12px 14px", fontWeight: 700, color: COLORS.primary }}>#{a.caseId}</td><td style={{ padding: "12px 14px", fontWeight: 600 }}>{a.caseName}</td><td style={{ padding: "12px 14px", color: COLORS.textSecondary }}>{a.requestedBy}</td><td style={{ padding: "12px 14px", color: COLORS.textSecondary, fontSize: 12 }}>{a.requestedAt}</td><td style={{ padding: "12px 14px", color: COLORS.textSecondary, fontSize: 12 }}>{a.reason}</td>
-                      <td style={{ padding: "12px 14px" }} onClick={e => e.stopPropagation()}><div style={{ display: "flex", gap: 6 }}><button style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: COLORS.success, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>Onayla</button><button style={{ padding: "5px 12px", borderRadius: 6, border: `1.5px solid ${COLORS.danger}`, background: "#fff", color: COLORS.danger, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>Reddet</button></div></td>
+                      <td style={{ padding: "12px 14px" }} onClick={e => e.stopPropagation()}><div style={{ display: "flex", gap: 6 }}><button onClick={() => handleApproval(a, true)} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: COLORS.success, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>Onayla</button><button onClick={() => handleApproval(a, false)} style={{ padding: "5px 12px", borderRadius: 6, border: `1.5px solid ${COLORS.danger}`, background: "#fff", color: COLORS.danger, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>Reddet</button></div></td>
                     </tr>); })}
                 </tbody>
               </table>
@@ -496,12 +383,12 @@ export default function SCMCaseList({ onNavigate } = {}) {
             <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
               {/* Search + Currency + Filter + Export */}
               <div style={{ padding: "16px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottom: `1px solid ${COLORS.border}` }}>
-                <div style={{ position: "relative", flex: 1, maxWidth: 400 }}>
-                  <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }}><Icons.Search /></span>
-                  <input value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setPage(1); }} placeholder="Case ID, vaka adı veya kullanıcı ara..."
-                    style={{ width: "100%", padding: "10px 14px 10px 40px", borderRadius: 10, border: `1.5px solid ${COLORS.border}`, fontSize: 13, outline: "none", boxSizing: "border-box" }}
-                    onFocus={e => e.target.style.borderColor = COLORS.primaryLight} onBlur={e => e.target.style.borderColor = COLORS.border} />
-                </div>
+                <SearchInput
+                  value={searchTerm}
+                  onChange={e => { setSearchTerm(e.target.value); setPage(1); }}
+                  placeholder="Case ID, vaka adı veya kullanıcı ara..."
+                  style={{ flex: 1, maxWidth: 400 }}
+                />
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3 }}>
                     {[{ key: "original", label: "Default" }, { key: "TRY", label: "₺ TRY" }, { key: "USD", label: "$ USD" }].map(o => (
@@ -509,13 +396,11 @@ export default function SCMCaseList({ onNavigate } = {}) {
                     ))}
                   </div>
                   <div style={{ width: 1, height: 28, background: COLORS.border }} />
-                  <button onClick={() => setShowFilters(f => !f)} style={{
-                    display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                    background: showFilters ? COLORS.primary : "#F8FAFC", color: showFilters ? "#fff" : COLORS.text, border: `1.5px solid ${showFilters ? COLORS.primary : COLORS.border}`,
-                  }}>
-                    <Icons.Filter /> Filtreler
-                    {(filters.severity.length + filters.status.length + (filters.owner ? 1 : 0)) > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, background: showFilters ? "rgba(255,255,255,0.3)" : COLORS.primary, color: "#fff" }}>{filters.severity.length + filters.status.length + (filters.owner ? 1 : 0)}</span>}
-                  </button>
+                  <FilterBar.Toggle
+                    open={showFilters}
+                    onToggle={() => setShowFilters(f => !f)}
+                    activeCount={filters.severity.length + filters.status.length + (filters.owner ? 1 : 0)}
+                  />
                   <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", background: "#F8FAFC", color: COLORS.text, border: `1.5px solid ${COLORS.border}` }}
                     onMouseEnter={e => { e.currentTarget.style.background = COLORS.success; e.currentTarget.style.color = "#fff"; e.currentTarget.style.borderColor = COLORS.success; }}
                     onMouseLeave={e => { e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = COLORS.text; e.currentTarget.style.borderColor = COLORS.border; }}>
@@ -525,42 +410,41 @@ export default function SCMCaseList({ onNavigate } = {}) {
                 </div>
               </div>
 
-              {/* Filter Panel (no domain) */}
+              {/* Filter Panel */}
               {showFilters && (
-                <div style={{ padding: "16px 22px", borderBottom: `1px solid ${COLORS.border}`, background: "#FAFBFC", display: "flex", flexWrap: "wrap", gap: 20, alignItems: "flex-end" }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textSecondary, display: "block", marginBottom: 6, letterSpacing: 0.5 }}>DURUM</label>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {Object.entries(STATUS_CONFIG).filter(([k]) => activeView !== "deleted" || k === "Deleted").map(([k, cfg]) => (
-                        <button key={k} onClick={() => toggleStatus(k)} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", background: filters.status.includes(k) ? cfg.bg : "#fff", color: filters.status.includes(k) ? cfg.color : COLORS.textSecondary, border: `1.5px solid ${filters.status.includes(k) ? cfg.border : COLORS.border}` }}>{cfg.label}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textSecondary, display: "block", marginBottom: 6, letterSpacing: 0.5 }}>ÖNEM DERECESİ</label>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {Object.entries(SEVERITY_CONFIG).map(([k, cfg]) => (
-                        <button key={k} onClick={() => toggleSeverity(k)} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", background: filters.severity.includes(k) ? cfg.bg : "#fff", color: filters.severity.includes(k) ? cfg.color : COLORS.textSecondary, border: `1.5px solid ${filters.severity.includes(k) ? cfg.border : COLORS.border}` }}>{cfg.label}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textSecondary, display: "block", marginBottom: 6, letterSpacing: 0.5 }}>ATANAN</label>
-                    <select value={filters.owner} onChange={e => { setFilters(f => ({ ...f, owner: e.target.value })); setPage(1); }} style={{ padding: "7px 12px", borderRadius: 8, border: `1.5px solid ${COLORS.border}`, fontSize: 12, outline: "none", background: "#fff", minWidth: 150 }}>
-                      <option value="">Tümü</option><option value="__unassigned__">Atanmamış</option>
-                      {ACTIVE_USERS.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textSecondary, display: "block", marginBottom: 6, letterSpacing: 0.5 }}>TARİH ARALIĞI</label>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} style={{ padding: "6px 10px", borderRadius: 8, border: `1.5px solid ${COLORS.border}`, fontSize: 12, outline: "none" }} />
-                      <span style={{ fontSize: 12, color: COLORS.textSecondary }}>—</span>
-                      <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} style={{ padding: "6px 10px", borderRadius: 8, border: `1.5px solid ${COLORS.border}`, fontSize: 12, outline: "none" }} />
-                    </div>
-                  </div>
-                  <button onClick={() => { setFilters({ status: [], severity: [], owner: "", dateFrom: "", dateTo: "" }); setPage(1); }} style={{ padding: "7px 14px", borderRadius: 8, border: `1.5px solid ${COLORS.border}`, background: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", color: COLORS.danger, display: "flex", alignItems: "center", gap: 4 }}><Icons.X /> Temizle</button>
-                </div>
+                <FilterBar.Panel onReset={() => { setFilters({ status: [], severity: [], owner: "", dateFrom: "", dateTo: "" }); setPage(1); }}>
+                  <FilterBar.ChipGroup
+                    label="DURUM"
+                    options={Object.entries(STATUS_CONFIG)
+                      .filter(([k]) => activeView !== "deleted" || k === "Deleted")
+                      .map(([k, cfg]) => ({ key: k, ...cfg }))}
+                    selected={filters.status}
+                    onToggle={toggleStatus}
+                  />
+                  <FilterBar.ChipGroup
+                    label="ÖNEM DERECESİ"
+                    options={Object.entries(SEVERITY_CONFIG).map(([k, cfg]) => ({ key: k, ...cfg }))}
+                    selected={filters.severity}
+                    onToggle={toggleSeverity}
+                  />
+                  <FilterBar.Select
+                    label="ATANAN"
+                    value={filters.owner}
+                    onChange={e => { setFilters(f => ({ ...f, owner: e.target.value })); setPage(1); }}
+                    options={[
+                      { value: "", label: "Tümü" },
+                      { value: "__unassigned__", label: "Atanmamış" },
+                      ...ACTIVE_USERS.map(u => ({ value: u.name, label: u.name })),
+                    ]}
+                  />
+                  <FilterBar.DateRange
+                    label="TARİH ARALIĞI"
+                    from={filters.dateFrom}
+                    to={filters.dateTo}
+                    onFromChange={e => { setFilters(f => ({ ...f, dateFrom: e.target.value })); setPage(1); }}
+                    onToChange={e => { setFilters(f => ({ ...f, dateTo: e.target.value })); setPage(1); }}
+                  />
+                </FilterBar.Panel>
               )}
 
               {/* Selection Bar */}
@@ -599,15 +483,30 @@ export default function SCMCaseList({ onNavigate } = {}) {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginated.map(c => (
+                    {casesLoading && <style>{`@keyframes kpiPulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>}
+                    {casesLoading && Array.from({ length: 8 }).map((_, i) => (
+                      <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                        {[40, 85, null, 130, 95, 140, 100, 100, 150].map((w, j) => (
+                          <td key={j} style={{ padding: "12px 8px" }}>
+                            <div style={{
+                              height: 14, borderRadius: 6, background: "#E2E8F0",
+                              width: j === 0 ? 16 : `${55 + Math.floor(Math.sin(i * 7 + j) * 30)}%`,
+                              animation: "kpiPulse 1.4s ease-in-out infinite",
+                              animationDelay: `${(i + j) * 0.06}s`,
+                            }} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    {!casesLoading && paginated.map(c => (
                       <tr key={c.id} style={{ borderBottom: `1px solid ${COLORS.border}`, transition: "background 0.1s", background: selectedCases.has(c.id) ? "#EFF6FF" : "transparent" }}
                         onMouseEnter={e => { if (!selectedCases.has(c.id)) e.currentTarget.style.background = "#FAFBFC"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = selectedCases.has(c.id) ? "#EFF6FF" : "transparent"; }}>
                         <td style={{ padding: "11px 8px", textAlign: "center" }}>
                           <input type="checkbox" checked={selectedCases.has(c.id)} onChange={() => toggleSelect(c.id)} style={{ width: 15, height: 15, cursor: "pointer", accentColor: COLORS.primary }} />
                         </td>
-                        <td style={{ padding: "11px 8px", fontWeight: 700, color: COLORS.primary, cursor: "pointer" }} onClick={() => { if (onNavigate) onNavigate("case_detail", c); }}>#{c.id}</td>
-                        <td style={{ padding: "11px 8px", fontWeight: 600, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }} onClick={() => { if (onNavigate) onNavigate("case_detail", c); }}>{c.name}</td>
+                        <td style={{ padding: "11px 8px", fontWeight: 700, color: COLORS.primary, cursor: "pointer" }} onClick={() => setDrawerCase(c)}>#{c.id}</td>
+                        <td style={{ padding: "11px 8px", fontWeight: 600, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }} onClick={() => setDrawerCase(c)}>{c.name}</td>
                         <td style={{ padding: "11px 8px" }}><Badge config={STATUS_CONFIG[c.status]} /></td>
                         <td style={{ padding: "11px 8px" }}><Badge config={SEVERITY_CONFIG[c.severity]} /></td>
                         <td style={{ padding: "11px 8px" }}>
@@ -616,7 +515,12 @@ export default function SCMCaseList({ onNavigate } = {}) {
                               {assignDropdown === c.id ? (
                                 <div style={{ position: "absolute", top: -8, left: 0, background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 30, width: 200, maxHeight: 200, overflowY: "auto" }}>
                                   {(isManager ? ACTIVE_USERS : ACTIVE_USERS.filter(u => u.id === user.id)).map(u => (
-                                    <div key={u.id} onClick={() => setAssignDropdown(null)} style={{ padding: "8px 14px", fontSize: 12, cursor: "pointer", borderBottom: `1px solid ${COLORS.border}` }}
+                                    <div key={u.id} onClick={() => {
+                                      const updated = { ...c, owner: u.name };
+                                      if (onCaseUpdated) onCaseUpdated(updated);
+                                      else setLocalCases(prev => prev.map(x => x.id === c.id ? updated : x));
+                                      setAssignDropdown(null);
+                                    }} style={{ padding: "8px 14px", fontSize: 12, cursor: "pointer", borderBottom: `1px solid ${COLORS.border}` }}
                                       onMouseEnter={e => e.currentTarget.style.background = "#F1F5F9"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                                       <div style={{ fontWeight: 600 }}>{u.name}</div><div style={{ fontSize: 10.5, color: COLORS.textSecondary }}>{u.role}</div>
                                     </div>
@@ -633,7 +537,7 @@ export default function SCMCaseList({ onNavigate } = {}) {
                         </td>
                       </tr>
                     ))}
-                    {paginated.length === 0 && <tr><td colSpan={tableCols.length} style={{ padding: 40, textAlign: "center", color: COLORS.textSecondary }}>Filtre kriterlerine uygun vaka bulunamadı.</td></tr>}
+                    {!casesLoading && paginated.length === 0 && <tr><td colSpan={tableCols.length} style={{ padding: 40, textAlign: "center", color: COLORS.textSecondary }}>Filtre kriterlerine uygun vaka bulunamadı.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -659,6 +563,7 @@ export default function SCMCaseList({ onNavigate } = {}) {
       </main>
 
       {/* Overlays */}
+      <CaseDrawer caseData={drawerCase} onClose={() => setDrawerCase(null)} onNavigate={handleNavigation} />
     </div>
   );
 }
