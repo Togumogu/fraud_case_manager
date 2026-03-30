@@ -90,7 +90,10 @@ export const relations = {
 
 // ─── Users ───
 export const users = {
-  list: () => get('/users'),
+  list: (params = {}) => {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''))).toString();
+    return get(`/users${qs ? '?' + qs : ''}`);
+  },
 };
 
 // ─── Settings ───
@@ -112,9 +115,18 @@ export const approvals = {
 
 // ─── Dashboard ───
 export const dashboard = {
-  kpis: () => get('/dashboard/kpis'),
-  activity: () => get('/dashboard/activity'),
-  unassignedCases: () => get('/dashboard/unassigned-cases'),
+  kpis: (params = {}) => {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''))).toString();
+    return get(`/dashboard/kpis${qs ? '?' + qs : ''}`);
+  },
+  activity: (params = {}) => {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''))).toString();
+    return get(`/dashboard/activity${qs ? '?' + qs : ''}`);
+  },
+  unassignedCases: (params = {}) => {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''))).toString();
+    return get(`/dashboard/unassigned-cases${qs ? '?' + qs : ''}`);
+  },
 };
 
 export default { fdm, cases, transactions, comments, attachments, history, reviews, relations, users, settings, approvals, dashboard };

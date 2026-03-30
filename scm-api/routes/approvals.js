@@ -4,10 +4,24 @@ const { getDb } = require('../db/connection');
 
 router.get('/', (req, res) => {
   const db = getDb();
-  const { status = 'pending', case_id } = req.query;
-  const rows = case_id
-    ? db.prepare(`SELECT * FROM approval_requests WHERE status = ? AND case_id = ? ORDER BY requested_at DESC`).all(status, Number(case_id))
-    : db.prepare(`SELECT * FROM approval_requests WHERE status = ? ORDER BY requested_at DESC`).all(status);
+  const { status = 'pending', case_id, domain } = req.query;
+
+  if (case_id) {
+    const rows = db.prepare(`SELECT * FROM approval_requests WHERE status = ? AND case_id = ? ORDER BY requested_at DESC`).all(status, Number(case_id));
+    return res.json(rows);
+  }
+
+  if (domain) {
+    const rows = db.prepare(`
+      SELECT ar.* FROM approval_requests ar
+      JOIN cases c ON c.id = ar.case_id
+      WHERE ar.status = ? AND c.domain_id = ?
+      ORDER BY ar.requested_at DESC
+    `).all(status, domain);
+    return res.json(rows);
+  }
+
+  const rows = db.prepare(`SELECT * FROM approval_requests WHERE status = ? ORDER BY requested_at DESC`).all(status);
   res.json(rows);
 });
 

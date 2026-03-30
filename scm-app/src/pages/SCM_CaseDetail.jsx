@@ -155,11 +155,10 @@ const fmt = (a, c = "TRY") => `${{ TRY: "₺", USD: "$", EUR: "€" }[c] || ""}$
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, currentRole = "analyst", onRoleChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], addNotification, onMarkAllRead, onMarkRead, showToast: showToastProp } = {}) {
+export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], addNotification, onMarkAllRead, onMarkRead, showToast: showToastProp } = {}) {
   const baseCase = initialCase ? { ...initialCase } : {};
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [selectedDomain, setSelectedDomain] = useState("Payment Fraud");
 
   const [caseData, setCaseData] = useState({ ...baseCase });
   const [activeTab, setActiveTab] = useState("entities");
@@ -228,9 +227,8 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
 
   // Fetch case_delete_enabled setting for the current domain
   useEffect(() => {
-    const domainId = DOMAIN_LABEL_TO_ID[selectedDomain];
-    if (!domainId) return;
-    settingsApi.getDomain(domainId).then(data => {
+    if (!selectedDomain) return;
+    settingsApi.getDomain(selectedDomain).then(data => {
       setCaseDeleteEnabled(data.case_delete_enabled !== undefined ? !!data.case_delete_enabled : true);
     }).catch(() => {});
   }, [selectedDomain]);
@@ -490,7 +488,7 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
         onNavigate={onNavigate}
         user={USERS[currentRole]}
         selectedDomain={selectedDomain}
-        onDomainChange={setSelectedDomain}
+        onDomainChange={onDomainChange}
         collapsed={sidebarCollapsed}
         onCollapseToggle={() => setSidebarCollapsed(c => !c)}
         myCasesCount={myCasesCount}

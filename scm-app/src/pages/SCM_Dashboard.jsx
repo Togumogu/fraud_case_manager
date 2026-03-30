@@ -140,12 +140,11 @@ const COLORS = {
   danger: "#DC2626",
 };
 
-export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRoleChange, cases, notifications = [], onMarkAllRead, onMarkRead, showToast } = {}) {
+export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, cases, notifications = [], onMarkAllRead, onMarkRead, showToast } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [assignDropdown, setAssignDropdown] = useState(null);
   const [animatedKPIs, setAnimatedKPIs] = useState({});
   const [kpiLoading, setKpiLoading] = useState(true);
-  const [selectedDomain, setSelectedDomain] = useState("payment");
   const [recentActivities, setRecentActivities] = useState(RECENT_ACTIVITIES);
   const [pendingApprovals, setPendingApprovals] = useState(PENDING_APPROVALS);
   const [unassignedCases, setUnassignedCases] = useState(UNASSIGNED_CASES);
@@ -158,10 +157,10 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
     setKpiLoading(true);
     // Try to load from API; fall back to mock constants on error
     Promise.all([
-      dashboardApi.kpis(),
-      dashboardApi.activity(),
-      dashboardApi.unassignedCases(),
-      ...(isManager ? [approvalsApi.list({ status: 'pending' })] : []),
+      dashboardApi.kpis({ domain: selectedDomain }),
+      dashboardApi.activity({ domain: selectedDomain }),
+      dashboardApi.unassignedCases({ domain: selectedDomain }),
+      ...(isManager ? [approvalsApi.list({ status: 'pending', domain: selectedDomain })] : []),
     ]).then(([kpis, activity, unassigned, approvalsData]) => {
       if (cancelled) return;
       // KPIs — compute myCases from passed cases prop
@@ -213,7 +212,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
       if (showToast) showToast("error", err?.message || "Dashboard verileri yüklenemedi");
     });
     return () => { cancelled = true; };
-  }, [currentRole]);
+  }, [currentRole, selectedDomain]);
 
   const handleApproval = (approval, approved) => {
     const numericId = parseInt(String(approval.caseId).replace('#', ''), 10);
@@ -223,7 +222,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
       .catch((err) => { if (showToast) showToast("error", err?.message || "Vaka durumu güncellenemedi"); });
     setPendingApprovals(prev => prev.filter(a => a.id !== approval.id));
     if (showToast) showToast("success", approved ? "Onay verildi" : "Onay reddedildi");
-    dashboardApi.kpis().then(k => setAnimatedKPIs(prev => ({ ...prev, ...k }))).catch(() => {});
+    dashboardApi.kpis({ domain: selectedDomain }).then(k => setAnimatedKPIs(prev => ({ ...prev, ...k }))).catch(() => {});
   };
 
   const kpiCards = [
@@ -361,7 +360,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
         onNavigate={onNavigate}
         user={USERS[currentRole]}
         selectedDomain={selectedDomain}
-        onDomainChange={setSelectedDomain}
+        onDomainChange={onDomainChange}
         collapsed={sidebarCollapsed}
         onCollapseToggle={() => setSidebarCollapsed(c => !c)}
         notifications={notifications}

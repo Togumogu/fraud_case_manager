@@ -1179,7 +1179,7 @@ function ExternalReviewerFlow({ onBack }) {
 
 // ─── INTERNAL REVIEW PAGE ────────────────────────────────────────────────────
 
-function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, onNavigate, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead }) {
+function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, onNavigate, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead, selectedDomain = "payment", onDomainChange }) {
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedReview, setSelectedReview] = useState(null);
   const [reviewCaseData, setReviewCaseData] = useState(null);
@@ -1189,8 +1189,6 @@ function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, o
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [toast, setToast] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [selectedDomain, setSelectedDomain] = useState("payment");
-
   const [pendingReviews, setPendingReviews] = useState([...PENDING_REVIEWS]);
   const [completedReviews, setCompletedReviews] = useState([...COMPLETED_REVIEWS]);
 
@@ -1342,7 +1340,7 @@ function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, o
           onNavigate={onNavigate}
           user={USERS[currentRole]}
           selectedDomain={selectedDomain}
-          onDomainChange={setSelectedDomain}
+          onDomainChange={onDomainChange}
           collapsed={sidebarCollapsed}
           onCollapseToggle={() => setSidebarCollapsed(c => !c)}
           myCasesCount={myCasesCount}
@@ -1430,7 +1428,7 @@ function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, o
         onNavigate={onNavigate}
         user={USERS[currentRole]}
         selectedDomain={selectedDomain}
-        onDomainChange={setSelectedDomain}
+        onDomainChange={onDomainChange}
         collapsed={sidebarCollapsed}
         onCollapseToggle={() => setSidebarCollapsed(c => !c)}
         myCasesCount={myCasesCount}
@@ -1570,7 +1568,7 @@ function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, o
 
 // ─── MAIN APP ────────────────────────────────────────────────────────────────
 
-export default function SCMReview({ onNavigate, currentRole = "analyst", onRoleChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead } = {}) {
+export default function SCMReview({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead } = {}) {
   const [viewMode, setViewMode] = useState("internal");
   const user = USERS[currentRole];
 
@@ -1591,6 +1589,8 @@ export default function SCMReview({ onNavigate, currentRole = "analyst", onRoleC
       notifications={notifications}
       onMarkAllRead={onMarkAllRead}
       onMarkRead={onMarkRead}
+      selectedDomain={selectedDomain}
+      onDomainChange={onDomainChange}
     />
   );
 }

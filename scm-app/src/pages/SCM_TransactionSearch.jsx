@@ -3,6 +3,7 @@ import Sidebar from "../components/Sidebar";
 import SearchInput from "../components/SearchInput";
 import FilterBar from "../components/FilterBar";
 import { fdm } from "../api/client";
+import { DOMAIN_TO_SOURCE } from "../data/mockData";
 
 // ─── Mock Data ───
 const USERS = {
@@ -33,13 +34,6 @@ const formatCurrency = (amount, currency) => {
   return `${symbols[currency] || ""}${amount.toLocaleString("tr-TR")}`;
 };
 
-const DOMAIN_TO_SOURCE = {
-  payment: "payment_fraud",
-  credit_card: "cc_fraud",
-  application: "app_fraud",
-  account_takeover: "ato_fraud",
-  internal: "int_fraud",
-};
 
 function normalizeTransaction(t) {
   return {
@@ -122,10 +116,8 @@ const Badge = ({ config }) => (
 // ════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ════════════════════════════════════════════════════════
-export default function SCMTransactionSearch({ onNavigate, currentRole = "analyst", onRoleChange, transactions: txnsProp, notifications = [], onMarkAllRead, onMarkRead } = {}) {
+export default function SCMTransactionSearch({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, transactions: txnsProp, notifications = [], onMarkAllRead, onMarkRead } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [selectedDomain, setSelectedDomain] = useState("payment");
-
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimerRef = useRef(null);
@@ -234,7 +226,7 @@ export default function SCMTransactionSearch({ onNavigate, currentRole = "analys
         onNavigate={onNavigate}
         user={USERS[currentRole]}
         selectedDomain={selectedDomain}
-        onDomainChange={setSelectedDomain}
+        onDomainChange={onDomainChange}
         collapsed={sidebarCollapsed}
         onCollapseToggle={() => setSidebarCollapsed(c => !c)}
         notifications={notifications}

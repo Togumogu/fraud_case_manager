@@ -281,14 +281,13 @@ const Toggle = ({ checked, onChange, disabled }) => (
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function SCMSettings({ onNavigate, currentRole = "analyst", onRoleChange, notifications = [], onMarkAllRead, onMarkRead } = {}) {
+export default function SCMSettings({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, notifications = [], onMarkAllRead, onMarkRead } = {}) {
 
   // Sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [selectedDomain, setSelectedDomain] = useState("payment");
 
   // Settings state - initialized from domain
-  const [settings, setSettings] = useState({ ...DOMAIN_SETTINGS.payment });
+  const [settings, setSettings] = useState({ ...DOMAIN_SETTINGS[selectedDomain] });
   const [hasChanges, setHasChanges] = useState(false);
   const [activeSection, setActiveSection] = useState("system");
   const [toast, setToast] = useState(null);
@@ -475,7 +474,7 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
         onNavigate={onNavigate}
         user={USERS[currentRole]}
         selectedDomain={selectedDomain}
-        onDomainChange={setSelectedDomain}
+        onDomainChange={onDomainChange}
         collapsed={sidebarCollapsed}
         onCollapseToggle={() => setSidebarCollapsed(c => !c)}
         notifications={notifications}

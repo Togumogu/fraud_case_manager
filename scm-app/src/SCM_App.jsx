@@ -9,7 +9,7 @@ import SCMReports from "./pages/SCM_Reports";
 import SCMSettings from "./pages/SCM_Settings";
 import Toast from "./components/Toast";
 import { cases as casesApi, fdm as fdmApi } from "./api/client";
-import { generateCases, generateTransactions } from "./data/mockData";
+import { generateCases, generateTransactions, DOMAIN_TO_SOURCE } from "./data/mockData";
 
 // Nav key → canonical page key
 const KEY_MAP = {
@@ -51,6 +51,13 @@ export default function SCMApp() {
   const [selectedCase,  setSelectedCase]  = useState(null);
   const [initialNavKey, setInitialNavKey] = useState("cases");
   const [currentRole,   setCurrentRole]   = useState(() => localStorage.getItem("scm-role") || "analyst");
+  const [selectedDomain, setSelectedDomain] = useState(() => localStorage.getItem("scm-domain") || "payment");
+
+  const onDomainChange = useCallback((id) => {
+    setSelectedDomain(id);
+    localStorage.setItem("scm-domain", id);
+    setActivePage(prev => prev === "case_detail" ? "dashboard" : prev);
+  }, []);
 
   const onRoleChange = (role) => {
     setCurrentRole(role);
@@ -95,12 +102,13 @@ export default function SCMApp() {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   }, []);
 
-  // Load cases and transactions from API on mount; fall back to mock on error
+  // Load cases and transactions from API; re-fetch when domain changes
   useEffect(() => {
+    setCasesLoading(true);
     let cancelled = false;
     Promise.all([
-      casesApi.list({ limit: 200 }),
-      fdmApi.transactions({ limit: 200 }),
+      casesApi.list({ limit: 200, domain: selectedDomain }),
+      fdmApi.transactions({ limit: 200, domain: DOMAIN_TO_SOURCE[selectedDomain] }),
     ]).then(([casesRes, txnsRes]) => {
       if (cancelled) return;
       // Normalize API case shape → frontend shape
@@ -139,15 +147,18 @@ export default function SCMApp() {
       setApiReady(true);
       setCasesLoading(false);
     }).catch(() => {
-      // API unavailable — keep mock data
+      // API unavailable — filter mock data by domain
+      const domainSource = DOMAIN_TO_SOURCE[selectedDomain];
+      setCases(generateCases().filter(c => c.domain_id === selectedDomain));
+      setTransactions(generateTransactions().filter(t => t.source === domainSource));
       setApiReady(false);
       setCasesLoading(false);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedDomain]);
 
   const refreshCases = useCallback(() => {
-    casesApi.list({ limit: 200 }).then(res => {
+    casesApi.list({ limit: 200, domain: selectedDomain }).then(res => {
       const normalized = res.data.map(c => ({
         ...c,
         transactions:  c.transactions || [],
@@ -161,7 +172,7 @@ export default function SCMApp() {
       }));
       setCases(normalized);
     }).catch(() => {});
-  }, []);
+  }, [selectedDomain]);
 
   const ADMIN_ALLOWED_PAGES = new Set(["dashboard", "reports", "settings"]);
 
@@ -194,7 +205,7 @@ export default function SCMApp() {
         owner: newCase.owner,
         create_user: newCase.createUser || newCase.create_user,
         currency: newCase.currency,
-        domain_id: newCase.domain_id || "payment",
+        domain_id: newCase.domain_id || selectedDomain,
         total_amount: newCase.totalAmount || newCase.total_amount || 0,
         transaction_ids: newCase.transactions?.map(t => t.id) || [],
       }).then(() => refreshCases()).catch((err) => {
@@ -232,7 +243,7 @@ export default function SCMApp() {
   const pendingApprovalsCount = cases.filter(c => c.status === "Pending Closure").length;
   const reviewCount = cases.filter(c => c.status === "Under Review").length;
 
-  const p = { onNavigate: navigate, currentRole, onRoleChange, myCasesCount, pendingApprovalsCount, reviewCount, notifications, addNotification, onMarkAllRead: markAllRead, onMarkRead: markRead, showToast };
+  const p = { onNavigate: navigate, currentRole, onRoleChange, selectedDomain, onDomainChange, myCasesCount, pendingApprovalsCount, reviewCount, notifications, addNotification, onMarkAllRead: markAllRead, onMarkRead: markRead, showToast };
 
   return (
     <>

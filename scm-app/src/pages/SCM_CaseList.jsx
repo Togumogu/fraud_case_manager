@@ -156,11 +156,9 @@ const CaseDrawer = ({ caseData, onClose, onNavigate }) => {
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading = false, onCaseUpdated, initialNavKey = "cases", currentRole = "analyst", onRoleChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead, showToast } = {}) {
+export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading = false, onCaseUpdated, initialNavKey = "cases", currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead, showToast } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const cases = casesProp ?? [];
-  const [selectedDomain, setSelectedDomain] = useState("payment");
-
   const NAVKEY_TO_VIEW = { cases: "case_list", my_cases: "my_cases", pending_approvals: "approvals", deleted_cases: "deleted" };
   const [activeView, setActiveView] = useState(NAVKEY_TO_VIEW[initialNavKey] || "case_list");
 
@@ -298,7 +296,7 @@ export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading
         onNavigate={handleNavigation}
         user={USERS[currentRole]}
         selectedDomain={selectedDomain}
-        onDomainChange={setSelectedDomain}
+        onDomainChange={onDomainChange}
         collapsed={sidebarCollapsed}
         onCollapseToggle={() => setSidebarCollapsed(c => !c)}
         myCasesCount={myCasesCount}

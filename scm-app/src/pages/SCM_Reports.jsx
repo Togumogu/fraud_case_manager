@@ -171,9 +171,8 @@ const Icons = {
 const CatIcon = ({type,size=15})=>{const s={width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"};const m={folder:<svg {...s}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,shield:<svg {...s}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,bell:<svg {...s}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>,list:<svg {...s}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>,users:<svg {...s}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>,chart:<svg {...s}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,lock:<svg {...s}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,more:<svg {...s}><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>};return m[type]||m.folder;};
 const Badge=({label,bg,color})=><span style={{padding:"3px 8px",borderRadius:4,fontSize:11.5,fontWeight:500,background:bg,color,whiteSpace:"nowrap"}}>{label}</span>;
 
-export default function SCMReports({ onNavigate, currentRole = "analyst", onRoleChange, notifications = [], onMarkAllRead, onMarkRead } = {}) {
+export default function SCMReports({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, notifications = [], onMarkAllRead, onMarkRead } = {}) {
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
-  const [selectedDomain,setSelectedDomain]=useState("payment");
   const [reportMode]=useState("standard");
   const [selectedCategory,setSelectedCategory]=useState(null);
   const [selectedReport,setSelectedReport]=useState(null);
@@ -243,7 +242,7 @@ export default function SCMReports({ onNavigate, currentRole = "analyst", onRole
         onNavigate={onNavigate}
         user={USERS[currentRole]}
         selectedDomain={selectedDomain}
-        onDomainChange={setSelectedDomain}
+        onDomainChange={onDomainChange}
         collapsed={sidebarCollapsed}
         onCollapseToggle={() => setSidebarCollapsed(c => !c)}
         notifications={notifications}

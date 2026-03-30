@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 import { fdm } from "../api/client";
+import { DOMAIN_TO_SOURCE } from "../data/mockData";
 
 // ─── Mock Data ───
 const USERS = {
@@ -61,13 +62,6 @@ const convertAmount = (amount, fromCurrency, toCurrency) => {
   return Math.round(amount * FX_RATES[fromCurrency][toCurrency]);
 };
 
-const DOMAIN_TO_SOURCE = {
-  payment: "payment_fraud",
-  credit_card: "cc_fraud",
-  application: "app_fraud",
-  account_takeover: "ato_fraud",
-  internal: "int_fraud",
-};
 
 function normalizeTransaction(t) {
   return {
@@ -163,11 +157,8 @@ const formatCurrency = (amount, currency) => {
 };
 
 // ─── Main Component ───
-export default function SCMCaseCreation({ onNavigate, transactions: transactionsProp, cases: casesProp, onCaseCreated, currentRole = "analyst", onRoleChange, notifications = [], onMarkAllRead, onMarkRead, showToast: showToastProp } = {}) {
+export default function SCMCaseCreation({ onNavigate, transactions: transactionsProp, cases: casesProp, onCaseCreated, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, notifications = [], onMarkAllRead, onMarkRead, showToast: showToastProp } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  // Domain selection (system-wide, from sidebar)
-  const [selectedDomain, setSelectedDomain] = useState("payment");
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -409,7 +400,7 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
         onNavigate={onNavigate}
         user={USERS[currentRole]}
         selectedDomain={selectedDomain}
-        onDomainChange={setSelectedDomain}
+        onDomainChange={onDomainChange}
         collapsed={sidebarCollapsed}
         onCollapseToggle={() => setSidebarCollapsed(c => !c)}
         notifications={notifications}
