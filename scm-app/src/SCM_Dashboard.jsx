@@ -5,6 +5,7 @@ const USERS = {
   analyst: { id: 1, name: "Elif Yılmaz", role: "analyst", email: "elif@bank.com" },
   manager: { id: 2, name: "Burak Şen", role: "manager", email: "burak@bank.com" },
   admin: { id: 3, name: "Zeynep Demir", role: "admin", email: "zeynep@bank.com" },
+  super: { id: 4, name: "Toygun Baysal", role: "super", email: "toygun@bank.com" },
 };
 
 const KPI_DATA = {
@@ -428,7 +429,7 @@ export default function SCMDashboard({ onNavigate } = {}) {
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {/* Role Switcher (Demo) */}
             <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
-              {["analyst", "manager", "admin"].map(role => (
+              {["analyst", "manager", "admin", "super"].map(role => (
                 <button
                   key={role}
                   onClick={() => setCurrentRole(role)}
@@ -440,7 +441,7 @@ export default function SCMDashboard({ onNavigate } = {}) {
                     transition: "all 0.15s ease",
                   }}
                 >
-                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : "Admin"}
+                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : role === "admin" ? "Admin" : "Super"}
                 </button>
               ))}
             </div>

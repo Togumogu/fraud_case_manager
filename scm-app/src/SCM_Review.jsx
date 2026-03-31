@@ -6,6 +6,7 @@ const USERS = {
   analyst: { id: 1, name: "Elif Yılmaz", role: "analyst", email: "elif@bank.com" },
   manager: { id: 2, name: "Burak Şen", role: "manager", email: "burak@bank.com" },
   admin: { id: 3, name: "Zeynep Demir", role: "admin", email: "zeynep@bank.com" },
+  super: { id: 4, name: "Toygun Baysal", role: "super", email: "toygun@bank.com" },
 };
 
 const FRAUD_DOMAINS = [

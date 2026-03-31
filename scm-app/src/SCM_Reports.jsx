@@ -4,6 +4,7 @@ const USERS = {
   analyst: { id: 1, name: "Elif Yılmaz", role: "analyst", roleLabel: "Fraud Analist" },
   manager: { id: 2, name: "Burak Şen", role: "manager", roleLabel: "Yönetici" },
   admin: { id: 3, name: "Zeynep Demir", role: "admin", roleLabel: "Admin" },
+  super: { id: 4, name: "Toygun Baysal", role: "super", roleLabel: "Super Admin" },
 };
 const FRAUD_DOMAINS = [
   { id: "payment", label: "Payment Fraud", icon: "₺", color: "#0891B2" },

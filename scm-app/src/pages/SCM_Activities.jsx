@@ -9,6 +9,7 @@ const USERS = {
   analyst: { id: 1, name: "Elif Yılmaz", role: "analyst", email: "elif@bank.com" },
   manager: { id: 2, name: "Burak Şen", role: "manager", email: "burak@bank.com" },
   admin: { id: 3, name: "Zeynep Demir", role: "admin", email: "zeynep@bank.com" },
+  super: { id: 4, name: "Toygun Baysal", role: "super", email: "toygun@bank.com" },
 };
 
 const MOCK_ACTIVITIES = [
@@ -44,6 +45,7 @@ const Icons = {
   Globe: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
   ChevronLeft: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
   ChevronRight: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+  Export: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
 };
 
 // --- Action config ---
@@ -258,7 +260,7 @@ export default function SCMActivities({ onNavigate, currentRole = "analyst", onR
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {/* Role Switcher (Demo) */}
             <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
-              {["analyst", "manager", "admin"].map(role => (
+              {["analyst", "manager", "admin", "super"].map(role => (
                 <button
                   key={role}
                   onClick={() => onRoleChange && onRoleChange(role)}
@@ -270,7 +272,7 @@ export default function SCMActivities({ onNavigate, currentRole = "analyst", onR
                     transition: "all 0.15s ease",
                   }}
                 >
-                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : "Admin"}
+                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : role === "admin" ? "Admin" : "Super"}
                 </button>
               ))}
             </div>
@@ -296,6 +298,19 @@ export default function SCMActivities({ onNavigate, currentRole = "analyst", onR
               />
             </div>
             <FilterBar.Toggle open={showFilters} onToggle={() => setShowFilters(o => !o)} activeCount={activeFilterCount} />
+            <button
+              onClick={() => showToast && showToast("success", `${totalCount} aktivite Excel (.xlsx) olarak indiriliyor...`)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "9px 16px",
+                borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                background: "#F8FAFC", color: COLORS.text,
+                border: `1.5px solid ${COLORS.border}`, transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#059669"; e.currentTarget.style.color = "#fff"; e.currentTarget.style.borderColor = "#059669"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = COLORS.text; e.currentTarget.style.borderColor = COLORS.border; }}
+            >
+              <Icons.Export /> Export
+            </button>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
               <span style={{ fontSize: 12, color: COLORS.textSecondary }}>
                 {totalCount} aktivite
@@ -378,14 +393,10 @@ export default function SCMActivities({ onNavigate, currentRole = "analyst", onR
                 return (
                   <div
                     key={act.id}
-                    onClick={() => onNavigate && onNavigate("case_detail", { id: act.caseId, name: act.caseName })}
                     style={{
                       padding: "14px 22px", borderBottom: `1px solid ${COLORS.border}`,
                       display: "flex", alignItems: "flex-start", gap: 12,
-                      cursor: "pointer", transition: "background 0.1s",
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
-                    onMouseLeave={e => e.currentTarget.style.background = "#fff"}
                   >
                     {/* Action icon */}
                     <div style={{

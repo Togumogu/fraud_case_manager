@@ -35,6 +35,7 @@ const ROLE_LABELS = {
   analyst: "Fraud Analist",
   manager: "Yönetici",
   admin:   "Admin",
+  super:   "Super Admin",
 };
 
 const CASES_KEYS = ["cases", "my_cases", "reviews", "pending_approvals", "deleted_cases"];
@@ -186,7 +187,8 @@ export default function Sidebar({
     localStorage.setItem("scm-theme", next ? "dark" : "light");
   };
 
-  const isManager  = user.role === "manager" || user.role === "admin";
+  const isSuper    = user.role === "super";
+  const isManager  = user.role === "manager" || user.role === "admin" || isSuper;
   const isAdmin    = user.role === "admin";
   const roleLabel  = user.roleLabel || ROLE_LABELS[user.role] || user.role;
   const sW         = collapsed ? 72 : 260;
@@ -281,10 +283,10 @@ export default function Sidebar({
       <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
 
         <NavBtn navKey="dashboard"     label="Dashboard"       sublabel="Ana Sayfa"          icon={<I.Dashboard />}       activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />
-        {!isAdmin && <NavBtn navKey="case_creation" label="Vaka Oluşturma"  sublabel="Case Creation"       icon={<I.CaseCreate />}      activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />}
+        {(!isAdmin || isSuper) && <NavBtn navKey="case_creation" label="Vaka Oluşturma"  sublabel="Case Creation"       icon={<I.CaseCreate />}      activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />}
 
         {/* ─ Vaka Listesi (genişletilebilir) ─ */}
-        {!isAdmin && <div style={{ display: "flex", alignItems: "center", borderRadius: 8, overflow: "hidden", background: isCasesActive ? "rgba(59,130,246,0.15)" : "transparent", transition: "background 0.15s ease" }}
+        {(!isAdmin || isSuper) && <div style={{ display: "flex", alignItems: "center", borderRadius: 8, overflow: "hidden", background: isCasesActive ? "rgba(59,130,246,0.15)" : "transparent", transition: "background 0.15s ease" }}
           onMouseEnter={e => { if (!isCasesActive) e.currentTarget.style.background = C.sidebarHover; }}
           onMouseLeave={e => { if (!isCasesActive) e.currentTarget.style.background = "transparent"; }}
         >
@@ -327,7 +329,7 @@ export default function Sidebar({
         </div>}
 
         {/* ─ Alt menü öğeleri (animasyonlu) ─ */}
-        {!isAdmin && <div style={{
+        {(!isAdmin || isSuper) && <div style={{
           overflow: "hidden",
           maxHeight: (casesMenuOpen && !collapsed) ? 300 : 0,
           opacity:   (casesMenuOpen && !collapsed) ? 1 : 0,
@@ -343,10 +345,10 @@ export default function Sidebar({
           </div>
         </div>}
 
-        {!isAdmin && <NavBtn navKey="txn_search" label="İşlem Arama" sublabel="Transaction Search" icon={<I.TransactionSearch />} activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />}
+        {(!isAdmin || isSuper) && <NavBtn navKey="txn_search" label="İşlem Arama" sublabel="Transaction Search" icon={<I.TransactionSearch />} activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />}
         <NavBtn navKey="reports"    label="Raporlar"    sublabel="Reports"             icon={<I.Reports />}           activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />
-        {!isAdmin && <NavBtn navKey="activities"    label="Son Aktiviteler" sublabel="Recent Activities"   icon={<I.Activity />}        activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />}
-        {isAdmin && (
+        {(!isAdmin || isSuper) && <NavBtn navKey="activities"    label="Son Aktiviteler" sublabel="Recent Activities"   icon={<I.Activity />}        activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />}
+        {(isAdmin || isSuper) && (
           <NavBtn navKey="settings" label="Ayarlar" sublabel="Settings" icon={<I.Settings />} activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />
         )}
       </nav>

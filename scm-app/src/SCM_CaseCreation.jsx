@@ -5,6 +5,7 @@ const USERS = {
   analyst: { id: 1, name: "Elif Yılmaz", role: "analyst", email: "elif@bank.com" },
   manager: { id: 2, name: "Burak Şen", role: "manager", email: "burak@bank.com" },
   admin: { id: 3, name: "Zeynep Demir", role: "admin", email: "zeynep@bank.com" },
+  super: { id: 4, name: "Toygun Baysal", role: "super", email: "toygun@bank.com" },
 };
 
 const ACTIVE_USERS = [
@@ -576,14 +577,14 @@ export default function SCMCaseCreation({ onNavigate } = {}) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
-              {["analyst", "manager", "admin"].map(role => (
+              {["analyst", "manager", "admin", "super"].map(role => (
                 <button key={role} onClick={() => setCurrentRole(role)} style={{
                   padding: "6px 14px", fontSize: 11.5, fontWeight: 600, border: "none", cursor: "pointer", letterSpacing: "0.02em",
                   background: currentRole === role ? C.primary : "#fff",
                   color: currentRole === role ? "#fff" : C.textSecondary,
                   transition: "all 0.15s ease",
                 }}>
-                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : "Admin"}
+                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : role === "admin" ? "Admin" : "Super"}
                 </button>
               ))}
             </div>

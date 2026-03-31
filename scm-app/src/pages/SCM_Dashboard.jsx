@@ -10,6 +10,7 @@ const USERS = {
   analyst: { id: 1, name: "Elif Yılmaz", role: "analyst", email: "elif@bank.com" },
   manager: { id: 2, name: "Burak Şen", role: "manager", email: "burak@bank.com" },
   admin: { id: 3, name: "Zeynep Demir", role: "admin", email: "zeynep@bank.com" },
+  super: { id: 4, name: "Toygun Baysal", role: "super", email: "toygun@bank.com" },
 };
 
 const KPI_DATA = {
@@ -164,7 +165,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
     ]).then(([kpis, activity, unassigned, approvalsData]) => {
       if (cancelled) return;
       // KPIs — compute myCases from passed cases prop
-      const USERS_BY_ROLE = { analyst: "Elif Yılmaz", manager: "Burak Şen", admin: "Zeynep Demir" };
+      const USERS_BY_ROLE = { analyst: "Elif Yılmaz", manager: "Burak Şen", admin: "Zeynep Demir", super: "Toygun Baysal" };
       const myName = USERS_BY_ROLE[currentRole];
       const myCases = cases ? cases.filter(c => c.status !== "Deleted" && !c.is_deleted && c.owner === myName).length : 0;
       setTimeout(() => { if (!cancelled) setAnimatedKPIs({ ...kpis, myCases }); }, 200);
@@ -384,7 +385,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {/* Role Switcher (Demo) */}
             <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
-              {["analyst", "manager", "admin"].map(role => (
+              {["analyst", "manager", "admin", "super"].map(role => (
                 <button
                   key={role}
                   onClick={() => onRoleChange && onRoleChange(role)}
@@ -396,7 +397,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
                     transition: "all 0.15s ease",
                   }}
                 >
-                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : "Admin"}
+                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : role === "admin" ? "Admin" : "Super"}
                 </button>
               ))}
             </div>

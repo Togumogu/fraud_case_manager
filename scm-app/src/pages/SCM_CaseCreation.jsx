@@ -8,6 +8,7 @@ const USERS = {
   analyst: { id: 1, name: "Elif Yılmaz", role: "analyst", email: "elif@bank.com" },
   manager: { id: 2, name: "Burak Şen", role: "manager", email: "burak@bank.com" },
   admin: { id: 3, name: "Zeynep Demir", role: "admin", email: "zeynep@bank.com" },
+  super: { id: 4, name: "Toygun Baysal", role: "super", email: "toygun@bank.com" },
 };
 
 const ACTIVE_USERS = [
@@ -217,6 +218,9 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
 
+  // Track transactions added to a case during this session
+  const [addedToCaseTxnIds, setAddedToCaseTxnIds] = useState(new Set());
+
   // Toast
   const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -299,16 +303,18 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
   const paged = sorted;
 
   const handleSelectAll = () => {
+    const selectable = paged.filter(t => !addedToCaseTxnIds.has(t.id));
     const next = new Map(selectedTxns);
-    if (paged.every(t => selectedTxns.has(t.id))) {
-      paged.forEach(t => next.delete(t.id));
+    if (selectable.length > 0 && selectable.every(t => selectedTxns.has(t.id))) {
+      selectable.forEach(t => next.delete(t.id));
     } else {
-      paged.forEach(t => next.set(t.id, t));
+      selectable.forEach(t => next.set(t.id, t));
     }
     setSelectedTxns(next);
   };
 
   const handleSelect = (t) => {
+    if (addedToCaseTxnIds.has(t.id)) return;
     const next = new Map(selectedTxns);
     if (next.has(t.id)) next.delete(t.id); else next.set(t.id, t);
     setSelectedTxns(next);
@@ -375,6 +381,13 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
     }
     setSubmitting(false);
 
+    // Track these transactions as added to a case
+    setAddedToCaseTxnIds(prev => {
+      const next = new Set(prev);
+      for (const id of selectedTxns.keys()) next.add(id);
+      return next;
+    });
+
     setShowCreateModal(false);
     setSelectedTxns(new Map());
     setCaseForm({ name: "", domain: "", severity: "", assignee: "", description: "", parentCaseId: null });
@@ -418,14 +431,14 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
-              {["analyst", "manager", "admin"].map(role => (
+              {["analyst", "manager", "admin", "super"].map(role => (
                 <button key={role} onClick={() => onRoleChange && onRoleChange(role)} style={{
                   padding: "6px 14px", fontSize: 11.5, fontWeight: 600, border: "none", cursor: "pointer", letterSpacing: "0.02em",
                   background: currentRole === role ? C.primary : "#fff",
                   color: currentRole === role ? "#fff" : C.textSecondary,
                   transition: "all 0.15s ease",
                 }}>
-                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : "Admin"}
+                  {role === "analyst" ? "Analist" : role === "manager" ? "Yönetici" : role === "admin" ? "Admin" : "Super"}
                 </button>
               ))}
             </div>
@@ -549,14 +562,15 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
                 }}>Filtreleri Sıfırla</button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
-                {/* İşaretlenme Durumu */}
+                {/* Durum */}
                 <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>İşaretlenme Durumu</label>
+                  <label style={{ fontSize: 11.5, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>Durum</label>
                   <select value={filters.markStatus} onChange={e => { setFilters(f => ({ ...f, markStatus: e.target.value })); setPage(1); }}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, background: "#F8FAFC", outline: "none", color: C.text }}>
                     <option value="Tümü">Tümü</option>
-                    <option value="Marked">Marked (İşaretlenmiş)</option>
-                    <option value="Unmarked">Unmarked (İşaretlenmemiş)</option>
+                    <option value="Marked">İşaretlenmiş</option>
+                    <option value="Unmarked">İşaretlenmemiş</option>
+                    <option value="Case Assigned">Vakaya Eklenmiş</option>
                   </select>
                 </div>
                 {/* Varlık Türü */}
@@ -671,7 +685,7 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
                   <tr style={{ background: "#F8FAFC" }}>
                     <th style={{ width: 44, padding: "12px 14px", borderBottom: `2px solid ${C.border}`, textAlign: "center" }}>
                       <input type="checkbox"
-                        checked={paged.length > 0 && paged.every(t => selectedTxns.has(t.id))}
+                        checked={paged.filter(t => !addedToCaseTxnIds.has(t.id)).length > 0 && paged.filter(t => !addedToCaseTxnIds.has(t.id)).every(t => selectedTxns.has(t.id))}
                         onChange={handleSelectAll}
                         style={{ width: 16, height: 16, cursor: "pointer", accentColor: C.primaryLight }}
                       />
@@ -698,19 +712,28 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
                   {loading && <tr><td colSpan={tableCols.length + 2} style={{ padding: "48px 20px", textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Yükleniyor...</td></tr>}
                   {!loading && paged.length === 0 && <tr><td colSpan={tableCols.length + 2} style={{ padding: "48px 20px", textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Arama kriterlerine uygun işlem bulunamadı.</td></tr>}
                   {!loading && paged.map(t => {
+                    const isAddedToCase = addedToCaseTxnIds.has(t.id);
                     const isSelected = selectedTxns.has(t.id);
                     const sevStyle = SEVERITY_STYLES[t.severity];
-                    const statusStyle = STATUS_STYLES[t.markStatus];
+                    const statusStyle = isAddedToCase
+                      ? { label: "Vakaya Eklendi", bg: "#E0E7FF", color: "#3730A3", border: "#C7D2FE" }
+                      : STATUS_STYLES[t.markStatus];
                     const displayAmount = displayCurrency === "original" ? t.amount : convertAmount(t.amount, t.currency, displayCurrency);
                     const displayCurr = displayCurrency === "original" ? t.currency : displayCurrency;
                     return (
-                      <tr key={t.id} style={{ borderBottom: "1px solid #F1F5F9", background: isSelected ? "#EFF6FF" : "transparent", transition: "background 0.1s", cursor: "pointer" }}
-                        onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "#F8FAFC"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = isSelected ? "#EFF6FF" : "transparent"; }}
+                      <tr key={t.id} style={{
+                        borderBottom: "1px solid #F1F5F9",
+                        background: isAddedToCase ? "#F8FAFC" : isSelected ? "#EFF6FF" : "transparent",
+                        transition: "background 0.1s",
+                        cursor: isAddedToCase ? "default" : "pointer",
+                        opacity: isAddedToCase ? 0.5 : 1,
+                      }}
+                        onMouseEnter={e => { if (!isSelected && !isAddedToCase) e.currentTarget.style.background = "#F8FAFC"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = isAddedToCase ? "#F8FAFC" : isSelected ? "#EFF6FF" : "transparent"; }}
                       >
                         <td style={{ padding: "11px 14px", textAlign: "center", width: 44 }}>
-                          <input type="checkbox" checked={isSelected} onChange={() => handleSelect(t)}
-                            style={{ width: 16, height: 16, cursor: "pointer", accentColor: C.primaryLight }} />
+                          <input type="checkbox" checked={isSelected} disabled={isAddedToCase} onChange={() => handleSelect(t)}
+                            style={{ width: 16, height: 16, cursor: isAddedToCase ? "not-allowed" : "pointer", accentColor: C.primaryLight }} />
                         </td>
                         <td style={{ padding: "11px 14px", fontWeight: 600, color: C.primaryLight, fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5 }}>{t.id}</td>
                         <td style={{ padding: "11px 14px" }}><div style={{ fontSize: 12.5, fontWeight: 500, color: C.text }}>{t.customerName}</div><div style={{ fontSize: 10.5, color: C.textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>{t.customerNo}</div></td>

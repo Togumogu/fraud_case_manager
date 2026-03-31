@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 // ═══════════════════════════════════════════════════════════════
 const USERS = {
   admin: { id: 3, name: "Zeynep Demir", role: "admin", email: "zeynep@bank.com" },
+  super: { id: 4, name: "Toygun Baysal", role: "super", email: "toygun@bank.com" },
 };
 
 const FRAUD_DOMAINS = [

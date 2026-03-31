@@ -68,6 +68,7 @@ export default function SCMApp() {
       const adminAllowed = new Set(["dashboard", "reports", "settings"]);
       setActivePage(p => adminAllowed.has(p) ? p : "dashboard");
     }
+    // super can see everything — no page restriction needed
   };
 
   // ── Shared state ──
@@ -239,7 +240,7 @@ export default function SCMApp() {
     }
   };
 
-  const USERS_BY_ROLE = { analyst: "Elif Yılmaz", manager: "Burak Şen", admin: "Zeynep Demir" };
+  const USERS_BY_ROLE = { analyst: "Elif Yılmaz", manager: "Burak Şen", admin: "Zeynep Demir", super: "Toygun Baysal" };
   const currentUserName = USERS_BY_ROLE[currentRole];
   const myCasesCount = cases.filter(c => c.status !== "Deleted" && c.owner === currentUserName).length;
   const pendingApprovalsCount = cases.filter(c => c.status === "Pending Closure").length;
