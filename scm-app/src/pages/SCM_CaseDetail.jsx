@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Sidebar from "../components/Sidebar";
 import Modal from "../components/Modal";
 import { comments as commentsApi, attachments as attachmentsApi, history as historyApi, reviews as reviewsApi, relations as relationsApi, transactions as txnsApi, fdm as fdmApi, cases as casesApi, approvals as approvalsApi, settings as settingsApi } from "../api/client";
@@ -149,9 +149,56 @@ const I = {
   Moon: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
   Sun: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
   LogOut: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  PlusCircle: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
+  ArrowRightCircle: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 16 16 12 12 8"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
+  MessageSquare: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+  UploadCloud: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>,
+  AlertTriangle: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  RefreshCw: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
+  PieChart: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
+  Layers: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
+  Unlink: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.84 12.25l1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M5.17 11.75l-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="8" y1="2" x2="8" y2="5"/><line x1="2" y1="8" x2="5" y2="8"/><line x1="16" y1="19" x2="16" y2="22"/><line x1="19" y1="16" x2="22" y2="16"/></svg>,
 };
 const C = { sidebar: "#0F172A", sidebarHover: "#1E293B", sidebarActive: "#1E40AF", primary: "#1E40AF", primaryLight: "#3B82F6", accent: "#F59E0B", bg: "#F1F5F9", card: "#FFFFFF", text: "#0F172A", textSecondary: "#64748B", border: "#E2E8F0", success: "#059669", warning: "#D97706", danger: "#DC2626" };
 const fmt = (a, c = "TRY") => `${{ TRY: "₺", USD: "$", EUR: "€" }[c] || ""}${(a ?? 0).toLocaleString("tr-TR")}`;
+
+// ═══════════════════════════════════════════════════════════════
+// TIMELINE CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+const TR_DAYS = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
+const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+
+const HISTORY_ACTION_CONFIG = {
+  "Vaka oluşturuldu":                    { icon: I.PlusCircle,       color: "#059669", category: "create" },
+  "Vaka atandı":                         { icon: I.ArrowRightCircle, color: "#D97706", category: "assign" },
+  "Yorum eklendi":                       { icon: I.MessageSquare,    color: "#2563EB", category: "comment" },
+  "Dosya yüklendi":                      { icon: I.UploadCloud,      color: "#0891B2", category: "upload" },
+  "İnceleme talep edildi":               { icon: I.Review,           color: "#7C3AED", category: "review" },
+  "İnceleme tamamlandı":                 { icon: I.Check,            color: "#059669", category: "review" },
+  "İnceleme yorumu eklendi":             { icon: I.Review,           color: "#7C3AED", category: "review" },
+  "Önem derecesi güncellendi":           { icon: I.AlertTriangle,    color: "#DC2626", category: "severity" },
+  "Vaka kapatma talebi gönderildi":      { icon: I.X,               color: "#DC2626", category: "request" },
+  "Vaka yeniden açma talebi gönderildi": { icon: I.RefreshCw,        color: "#D97706", category: "request" },
+  "Vaka silme talebi gönderildi":        { icon: I.Trash,            color: "#DC2626", category: "request" },
+  "Vaka güncellendi":                    { icon: I.Edit,             color: "#2563EB", category: "update" },
+  "Fraud dağılımı güncellendi":          { icon: I.PieChart,         color: "#D97706", category: "update" },
+  "İşlem(ler) eklendi":                  { icon: I.Layers,           color: "#0891B2", category: "txn" },
+  "İlişkili vaka eklendi":               { icon: I.Link,             color: "#7C3AED", category: "relation" },
+  "İlişkili vaka kaldırıldı":            { icon: I.Unlink,           color: "#DC2626", category: "relation" },
+};
+
+const HISTORY_FILTER_CHIPS = [
+  { key: "create",   label: "Oluşturma",  color: "#059669" },
+  { key: "assign",   label: "Atama",      color: "#D97706" },
+  { key: "comment",  label: "Yorum",      color: "#2563EB" },
+  { key: "upload",   label: "Dosya",      color: "#0891B2" },
+  { key: "review",   label: "İnceleme",   color: "#7C3AED" },
+  { key: "severity", label: "Önem",       color: "#DC2626" },
+  { key: "request",  label: "Talepler",   color: "#DC2626" },
+  { key: "update",   label: "Güncelleme", color: "#2563EB" },
+  { key: "txn",      label: "İşlemler",   color: "#0891B2" },
+  { key: "relation", label: "İlişkiler",  color: "#7C3AED" },
+];
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -359,10 +406,11 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
       showToast("success", `İnceleme ${selectedReviewers.length} kişiye gönderildi.`);
       if (addNotification) addNotification("review_sent", `#${baseCase.id || caseData.id} incelemeye gönderildi → ${names}`, baseCase.id || caseData.id);
     } else {
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(extEmail);
       if (!extName.trim()) { showToast("warning", "İnceleyici adı zorunludur"); return; }
+      if (extName.trim().length < 2) { showToast("warning", "İnceleyici adı en az 2 karakter olmalıdır"); return; }
+      if (extName.trim().length > 100) { showToast("warning", "İnceleyici adı en fazla 100 karakter olabilir"); return; }
       if (!extEmail.trim()) { showToast("warning", "E-posta adresi zorunludur"); return; }
-      if (!emailOk) { showToast("warning", "Geçerli bir e-posta adresi giriniz"); return; }
+      if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(extEmail.trim())) { showToast("warning", "Geçerli bir e-posta adresi giriniz"); return; }
       if (baseCase.id) {
         reviewsApi.create(baseCase.id, { reviewer_name: extName, reviewer_email: extEmail, review_type: 'external', requested_by: user.name, request_note: reviewNote || undefined })
           .catch((err) => showToast("error", err?.message || "Dış inceleme gönderilemedi"));
@@ -376,6 +424,10 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
   const handleAddComment = () => {
     if (!newComment.trim() || newComment.trim().length < 3) {
       showToast("warning", "Yorum en az 3 karakter olmalıdır");
+      return;
+    }
+    if (newComment.trim().length > 5000) {
+      showToast("warning", "Yorum en fazla 5000 karakter olabilir");
       return;
     }
     const n = new Date();
@@ -392,8 +444,13 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
     }
   };
   const handleSaveEdit = () => {
+    if (!editForm.name || !editForm.name.trim()) { showToast("warning", "Vaka adı zorunludur"); return; }
+    if (editForm.name.trim().length < 3) { showToast("warning", "Vaka adı en az 3 karakter olmalıdır"); return; }
+    if (editForm.name.trim().length > 200) { showToast("warning", "Vaka adı en fazla 200 karakter olabilir"); return; }
+    if (!editForm.severity) { showToast("warning", "Önem derecesi seçilmelidir"); return; }
+    if (editForm.description && editForm.description.length > 2000) { showToast("warning", "Açıklama en fazla 2000 karakter olabilir"); return; }
     const prev = caseData;
-    const updated = { ...prev, ...editForm };
+    const updated = { ...prev, ...editForm, name: editForm.name.trim() };
     setCaseData(updated);
     if (onCaseUpdated) onCaseUpdated(updated);
     if (addNotification) {
@@ -425,6 +482,9 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
     showToast("success", "Vaka güncellendi.");
   };
   const handleSaveFraud = () => {
+    const total = caseData.totalAmount || 0;
+    if (bankShareVal < 0 || customerShareVal < 0) { showToast("warning", "Paylar negatif olamaz"); return; }
+    if (bankShareVal + customerShareVal > total) { showToast("warning", "Banka ve müşteri payı toplamı fraud tutarını aşamaz"); return; }
     setCaseData(d => ({ ...d, bankShare: bankShareVal, customerShare: customerShareVal }));
     if (baseCase.id) {
       casesApi.update(baseCase.id, { bank_share: bankShareVal, customer_share: customerShareVal, update_user: user.name })
@@ -1036,12 +1096,184 @@ function AttachmentsTab({ att, onDel, cu, readOnly }) {
   </div>;
 }
 
+function parseDateTR(str) {
+  if (!str) return null;
+  const [datePart, timePart] = str.split(" ");
+  const [d, m, y] = datePart.split(".").map(Number);
+  const [hh, mm] = (timePart || "00:00").split(":").map(Number);
+  return new Date(y, m - 1, d, hh, mm);
+}
+
+function formatDateGroupHeader(date) {
+  const d = date.getDate().toString().padStart(2, "0");
+  const month = TR_MONTHS[date.getMonth()];
+  const year = date.getFullYear();
+  const day = TR_DAYS[date.getDay()];
+  return `${d} ${month} ${year} — ${day}`;
+}
+
+function formatRelativeTime(date) {
+  const now = new Date();
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60) return "Az önce";
+  if (diff < 3600) return `${Math.floor(diff / 60)} dakika önce`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} saat önce`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)} gün önce`;
+  return null;
+}
+
+function groupByDate(history) {
+  const map = new Map();
+  for (const h of history) {
+    const date = parseDateTR(h.date);
+    const key = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}` : "unknown";
+    if (!map.has(key)) map.set(key, { dateKey: key, dateLabel: date ? formatDateGroupHeader(date) : "Tarih Bilinmiyor", items: [] });
+    map.get(key).items.push(h);
+  }
+  return Array.from(map.values());
+}
+
+function highlightChange(detail, color) {
+  if (!detail) return null;
+  const idx = detail.indexOf("→");
+  if (idx === -1) return detail;
+  const before = detail.substring(0, idx).trim();
+  const after = detail.substring(idx + 1).trim();
+  return <span>
+    <span style={{ textDecoration: "line-through", color: C.textSecondary }}>{before}</span>
+    {" → "}
+    <span style={{ fontWeight: 700, color }}>{after}</span>
+  </span>;
+}
+
 function HistoryTab({ history = CASE_HISTORY }) {
-  const ac = { "Vaka oluşturuldu": "#059669", "Vaka atandı": "#D97706", "Yorum eklendi": "#2563EB", "Dosya yüklendi": "#0891B2", "İnceleme talep edildi": "#7C3AED", "İnceleme tamamlandı": "#059669", "İnceleme yorumu eklendi": "#7C3AED", "Önem derecesi güncellendi": "#DC2626", "Vaka kapatma talebi gönderildi": "#DC2626", "Vaka yeniden açma talebi gönderildi": "#D97706", "Vaka silme talebi gönderildi": "#DC2626", "Vaka güncellendi": "#2563EB", "Fraud dağılımı güncellendi": "#D97706", "İşlem(ler) eklendi": "#0891B2", "İlişkili vaka eklendi": "#7C3AED", "İlişkili vaka kaldırıldı": "#DC2626" };
-  return <div style={{ position: "relative", paddingLeft: 24 }}><div style={{ position: "absolute", left: 10, top: 0, bottom: 0, width: 2, background: C.border }} />
-    {history.map((h, i) => <div key={h.id} style={{ position: "relative", paddingBottom: 20, paddingLeft: 20, animation: `slideUp .3s ease ${i * 0.04}s both` }}>
-      <div style={{ position: "absolute", left: -4, top: 4, width: 10, height: 10, borderRadius: "50%", background: ac[h.action] || C.textSecondary, border: "2px solid #fff", boxShadow: `0 0 0 2px ${ac[h.action] || C.textSecondary}30` }} />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div><div style={{ fontSize: 13, fontWeight: 600, color: ac[h.action] || C.text }}>{h.action}</div><div style={{ fontSize: 12, marginTop: 2 }}>{h.detail}</div><div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>{h.user}</div></div><span style={{ fontSize: 11, color: C.textSecondary, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}><I.Clock /> {h.date}</span></div>
+  const [selectedTypes, setSelectedTypes] = useState([]);
+
+  const filtered = useMemo(() => {
+    if (selectedTypes.length === 0) return history;
+    return history.filter(h => {
+      const cfg = HISTORY_ACTION_CONFIG[h.action];
+      return cfg && selectedTypes.includes(cfg.category);
+    });
+  }, [history, selectedTypes]);
+
+  const groups = useMemo(() => groupByDate(filtered), [filtered]);
+
+  const toggleType = key => setSelectedTypes(prev =>
+    prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+  );
+
+  let globalIdx = 0;
+
+  return <div>
+    {/* Filter Chips */}
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+      {HISTORY_FILTER_CHIPS.map(chip => {
+        const sel = selectedTypes.includes(chip.key);
+        return <button key={chip.key} onClick={() => toggleType(chip.key)} style={{
+          padding: "4px 12px", borderRadius: 999,
+          border: `1px solid ${sel ? chip.color + "60" : C.border}`,
+          background: sel ? chip.color + "15" : "transparent",
+          color: sel ? chip.color : C.textSecondary,
+          fontSize: 11, fontWeight: 600, cursor: "pointer",
+          fontFamily: "'DM Sans',sans-serif", transition: "all .15s ease",
+        }}>{chip.label}</button>;
+      })}
+      {selectedTypes.length > 0 && <button onClick={() => setSelectedTypes([])} style={{
+        padding: "4px 12px", borderRadius: 999, border: "none",
+        background: "transparent", color: C.primaryLight,
+        fontSize: 11, fontWeight: 600, cursor: "pointer",
+        fontFamily: "'DM Sans',sans-serif", textDecoration: "underline",
+      }}>Temizle</button>}
+    </div>
+
+    {selectedTypes.length > 0 && <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 12 }}>
+      {selectedTypes.length} filtre aktif
+    </div>}
+
+    {/* Empty State */}
+    {groups.length === 0 && <div style={{ textAlign: "center", padding: "48px 20px", color: C.textSecondary }}>
+      <I.Clock />
+      <p style={{ marginTop: 8, fontSize: 13, fontWeight: 500 }}>
+        {selectedTypes.length > 0 ? "Seçili filtrelere uygun geçmiş kaydı bulunamadı." : "Henüz geçmiş kaydı bulunmamaktadır."}
+      </p>
+      {selectedTypes.length > 0 && <button onClick={() => setSelectedTypes([])} style={{
+        marginTop: 8, background: "none", border: "none",
+        color: C.primaryLight, fontSize: 12, fontWeight: 600, cursor: "pointer",
+        fontFamily: "'DM Sans',sans-serif",
+      }}>Filtreleri Temizle</button>}
+    </div>}
+
+    {/* Grouped Timeline */}
+    {groups.map(group => <div key={group.dateKey}>
+      {/* Date Separator */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0 12px" }}>
+        <div style={{ flex: 1, height: 1, background: C.border }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, whiteSpace: "nowrap", letterSpacing: 0.3, fontFamily: "'DM Sans',sans-serif" }}>{group.dateLabel}</span>
+        <div style={{ flex: 1, height: 1, background: C.border }} />
+      </div>
+
+      {/* Timeline */}
+      <div style={{ position: "relative", paddingLeft: 40 }}>
+        <div style={{ position: "absolute", left: 15, top: 0, bottom: 0, width: 2, background: C.border }} />
+
+        {group.items.map(h => {
+          const cfg = HISTORY_ACTION_CONFIG[h.action] || { icon: I.Clock, color: C.textSecondary, category: "other" };
+          const ActionIcon = cfg.icon;
+          const date = parseDateTR(h.date);
+          const rel = date ? formatRelativeTime(date) : null;
+          const idx = globalIdx++;
+
+          return <div key={h.id} style={{ position: "relative", paddingBottom: 16, paddingLeft: 28, animation: `slideUp .3s ease ${Math.min(idx * 0.03, 0.5)}s both` }}>
+            {/* Timeline Dot with Icon */}
+            <div style={{
+              position: "absolute", left: -15, top: 2, width: 30, height: 30, borderRadius: "50%",
+              background: cfg.color + "15", border: `2px solid ${cfg.color}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: cfg.color, zIndex: 1,
+            }}><ActionIcon /></div>
+
+            {/* Event Card */}
+            <div
+              style={{
+                background: C.card, border: `1px solid ${C.border}`, borderRadius: 10,
+                padding: "12px 16px", transition: "box-shadow .15s ease, border-color .15s ease",
+                cursor: "default",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.06)"; e.currentTarget.style.borderColor = cfg.color + "40"; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.border; }}
+            >
+              {/* Top: action badge + time */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{
+                  fontSize: 11.5, fontWeight: 700, color: cfg.color,
+                  background: cfg.color + "12", padding: "2px 10px", borderRadius: 6,
+                }}>{h.action}</span>
+                <span style={{ fontSize: 11, color: C.textSecondary, display: "flex", alignItems: "center", gap: 4 }}>
+                  <I.Clock /> {rel || h.date}
+                </span>
+              </div>
+
+              {/* Detail */}
+              <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, marginBottom: 8 }}>
+                {highlightChange(h.detail, cfg.color)}
+              </div>
+
+              {/* Bottom: user avatar + name + absolute date */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: "50%",
+                  background: cfg.color + "18", color: cfg.color,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: 800,
+                }}>{h.user?.charAt(0).toUpperCase()}</div>
+                <span style={{ fontSize: 11.5, fontWeight: 500, color: C.text }}>{h.user}</span>
+                <span style={{ fontSize: 10.5, color: C.textSecondary, marginLeft: "auto" }}>{h.date}</span>
+              </div>
+            </div>
+          </div>;
+        })}
+      </div>
     </div>)}
   </div>;
 }

@@ -334,8 +334,11 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
 
   const addCloseReason = () => {
     const trimmed = newCloseReason.trim();
-    if (!trimmed) return;
+    if (!trimmed) { showToast("warning", "Kapatma nedeni boş olamaz"); return; }
+    if (trimmed.length < 3) { showToast("warning", "Kapatma nedeni en az 3 karakter olmalıdır"); return; }
+    if (trimmed.length > 150) { showToast("warning", "Kapatma nedeni en fazla 150 karakter olabilir"); return; }
     if (settings.close_reasons.includes(trimmed)) { showToast("error", "Bu kapatma nedeni zaten mevcut."); return; }
+    if (settings.close_reasons.length >= 20) { showToast("warning", "En fazla 20 kapatma nedeni eklenebilir"); return; }
     updateSetting("close_reasons", [...settings.close_reasons, trimmed]);
     setNewCloseReason("");
   };
@@ -427,6 +430,11 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
 
   const handleSaveRole = () => {
     if (!roleName.trim()) { showToast("error", "Rol adı zorunludur."); return; }
+    if (roleName.trim().length < 2) { showToast("error", "Rol adı en az 2 karakter olmalıdır."); return; }
+    if (roleName.trim().length > 50) { showToast("error", "Rol adı en fazla 50 karakter olabilir."); return; }
+    if (roleDesc.trim().length > 200) { showToast("error", "Rol açıklaması en fazla 200 karakter olabilir."); return; }
+    const duplicate = roles.find(r => r.name.toLowerCase() === roleName.trim().toLowerCase() && (!editingRole || r.id !== editingRole.id));
+    if (duplicate) { showToast("error", "Bu isimde bir rol zaten mevcut."); return; }
     if (rolePerms.length === 0) { showToast("error", "En az bir yetki seçilmelidir."); return; }
     if (editingRole) {
       setRoles(prev => prev.map(r => r.id === editingRole.id ? { ...r, name: roleName.trim(), description: roleDesc.trim(), permissions: rolePerms } : r));

@@ -149,6 +149,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
   const [recentActivities, setRecentActivities] = useState(RECENT_ACTIVITIES);
   const [pendingApprovals, setPendingApprovals] = useState(PENDING_APPROVALS);
   const [unassignedCases, setUnassignedCases] = useState(UNASSIGNED_CASES);
+  const [panelsLoading, setPanelsLoading] = useState(true);
 
   const user = USERS[currentRole];
   const isManager = currentRole === "manager" || currentRole === "admin";
@@ -156,6 +157,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
   useEffect(() => {
     let cancelled = false;
     setKpiLoading(true);
+    setPanelsLoading(true);
     // Try to load from API; fall back to mock constants on error
     Promise.all([
       dashboardApi.kpis({ domain: selectedDomain }),
@@ -206,11 +208,13 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
           severity: a.severity,
         })));
       }
+      setPanelsLoading(false);
     }).catch((err) => {
       if (cancelled) return;
       // API unavailable — use mock KPI_DATA
       setTimeout(() => { if (!cancelled) setAnimatedKPIs(KPI_DATA); }, 200);
       setKpiLoading(false);
+      setPanelsLoading(false);
       if (showToast) showToast("error", err?.message || "Dashboard verileri yüklenemedi");
     });
     return () => { cancelled = true; };
@@ -470,7 +474,15 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
                 <span onClick={() => onNavigate && onNavigate("activities")} style={{ fontSize: 12, color: COLORS.primaryLight, cursor: "pointer", fontWeight: 500 }}>Tümünü Gör →</span>
               </div>
               <div style={{ maxHeight: 380, overflow: "auto" }}>
-                {recentActivities.slice(0, isManager ? 7 : 4).map(act => {
+                {panelsLoading ? Array.from({ length: isManager ? 5 : 4 }).map((_, i) => (
+                  <div key={i} style={{ padding: "14px 22px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: "#E2E8F0", animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.1}s` }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ height: 14, width: `${60 + (i % 3) * 15}%`, borderRadius: 4, background: "#E2E8F0", marginBottom: 8, animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.1 + 0.05}s` }} />
+                      <div style={{ height: 12, width: `${40 + (i % 2) * 20}%`, borderRadius: 4, background: "#F1F5F9", animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.1 + 0.1}s` }} />
+                    </div>
+                  </div>
+                )) : recentActivities.slice(0, isManager ? 7 : 4).map(act => {
                   const actionCfg = ACTION_ICONS[act.type];
                   return (
                     <div
@@ -497,7 +509,8 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
                       <span style={{ fontSize: 11, color: COLORS.textSecondary, whiteSpace: "nowrap", flexShrink: 0, marginTop: 3 }}>{act.time}</span>
                     </div>
                   );
-                })}
+                })
+                }
               </div>
             </div>
 
@@ -518,7 +531,20 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
                   </div>
                 </div>
                 <div style={{ maxHeight: 380, overflow: "auto" }}>
-                  {pendingApprovals.map(approval => (
+                  {panelsLoading ? Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} style={{ padding: "16px 22px", borderBottom: `1px solid ${COLORS.border}` }}>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                        <div style={{ height: 14, width: 60, borderRadius: 4, background: "#E2E8F0", animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.12}s` }} />
+                        <div style={{ height: 14, width: 50, borderRadius: 4, background: "#E2E8F0", animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.12 + 0.04}s` }} />
+                      </div>
+                      <div style={{ height: 14, width: `${55 + i * 12}%`, borderRadius: 4, background: "#E2E8F0", marginBottom: 10, animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.12 + 0.08}s` }} />
+                      <div style={{ height: 12, width: `${70 - i * 10}%`, borderRadius: 4, background: "#F1F5F9", marginBottom: 12, animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.12 + 0.12}s` }} />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ height: 30, width: 80, borderRadius: 7, background: "#E2E8F0", animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.12 + 0.16}s` }} />
+                        <div style={{ height: 30, width: 70, borderRadius: 7, background: "#F1F5F9", animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${i * 0.12 + 0.2}s` }} />
+                      </div>
+                    </div>
+                  )) : pendingApprovals.map(approval => (
                     <div
                       key={approval.id}
                       style={{ padding: "16px 22px", borderBottom: `1px solid ${COLORS.border}` }}
@@ -578,7 +604,8 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
                         </button>
                       </div>
                     </div>
-                  ))}
+                  ))
+                  }
                 </div>
               </div>
             )}
@@ -598,6 +625,8 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
               rows={unassignedCases}
               keyProp="id"
               paginate={false}
+              loading={panelsLoading}
+              loadingRows={4}
               emptyMessage="Atanmamış vaka bulunamadı."
             />
           </div>

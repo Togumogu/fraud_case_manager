@@ -286,7 +286,7 @@ export default function Sidebar({
         {(!isAdmin || isSuper) && <NavBtn navKey="case_creation" label="Vaka Oluşturma"  sublabel="Case Creation"       icon={<I.CaseCreate />}      activePage={activePage} collapsed={collapsed} onNavClick={handleTopNavClick} />}
 
         {/* ─ Vaka Listesi (genişletilebilir) ─ */}
-        {(!isAdmin || isSuper) && <div style={{ display: "flex", alignItems: "center", borderRadius: 8, overflow: "hidden", background: isCasesActive ? "rgba(59,130,246,0.15)" : "transparent", transition: "background 0.15s ease" }}
+        {(!isAdmin || isSuper) && <div style={{ display: "flex", alignItems: "center", borderRadius: 8, overflow: "hidden", flexShrink: 0, background: isCasesActive ? "rgba(59,130,246,0.15)" : "transparent", transition: "background 0.15s ease" }}
           onMouseEnter={e => { if (!isCasesActive) e.currentTarget.style.background = C.sidebarHover; }}
           onMouseLeave={e => { if (!isCasesActive) e.currentTarget.style.background = "transparent"; }}
         >
@@ -334,6 +334,7 @@ export default function Sidebar({
           maxHeight: (casesMenuOpen && !collapsed) ? 300 : 0,
           opacity:   (casesMenuOpen && !collapsed) ? 1 : 0,
           transition: "max-height 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.18s ease",
+          flexShrink: 0,
         }}>
           <div style={{ marginLeft: 20, borderLeft: "2px solid rgba(255,255,255,0.1)", marginBottom: 6 }}>
             <SubItem navKey="my_cases"          label="Vakalarım"          sublabel="My Cases"          icon={<I.MyCases />}       count={myCasesCount}          activePage={activePage} onNavClick={nav} />

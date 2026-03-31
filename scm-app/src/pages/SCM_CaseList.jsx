@@ -188,8 +188,10 @@ export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading
   }, []);
 
   const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [approvalsLoading, setApprovalsLoading] = useState(true);
 
   useEffect(() => {
+    setApprovalsLoading(true);
     approvalsApi.list({ status: 'pending' }).then(rows => setPendingApprovals(rows.map(a => ({
       id: a.id,
       type: a.type,
@@ -201,7 +203,7 @@ export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading
       severity: a.severity,
     })))).catch((err) => {
       if (showToast) showToast("error", err?.message || "Onay listesi yüklenemedi");
-    });
+    }).finally(() => setApprovalsLoading(false));
   }, []);
 
   const handleApproval = (approval, approved) => {
@@ -351,10 +353,20 @@ export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead><tr style={{ background: "#F8FAFC" }}>{["Tür", "Case ID", "Vaka Adı", "Talep Eden", "Tarih", "Neden", ""].map((h, i) => <th key={i} style={{ padding: "12px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: COLORS.textSecondary, borderBottom: `2px solid ${COLORS.border}` }}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {pendingApprovals.length === 0 && (
+                  {approvalsLoading && <style>{`@keyframes kpiPulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>}
+                  {approvalsLoading && Array.from({ length: 4 }).map((_, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                      {[80, 70, null, 110, 100, 120, 140].map((_, j) => (
+                        <td key={j} style={{ padding: "12px 14px" }}>
+                          <div style={{ height: 14, borderRadius: 6, background: "#E2E8F0", width: `${50 + Math.floor(Math.sin(i * 5 + j) * 30)}%`, animation: "kpiPulse 1.4s ease-in-out infinite", animationDelay: `${(i + j) * 0.06}s` }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {!approvalsLoading && pendingApprovals.length === 0 && (
                     <tr><td colSpan={7} style={{ padding: "32px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: 13 }}>Onay bekleyen talep bulunmuyor.</td></tr>
                   )}
-                  {pendingApprovals.map(a => { const lc = cases.find(c => c.id === a.caseId); return (
+                  {!approvalsLoading && pendingApprovals.map(a => { const lc = cases.find(c => c.id === a.caseId); return (
                     <tr key={a.id} style={{ borderBottom: `1px solid ${COLORS.border}`, cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = "#FAFBFC"} onMouseLeave={e => e.currentTarget.style.background = "transparent"} onClick={() => lc && onNavigate && onNavigate("case_detail", lc)}>
                       <td style={{ padding: "12px 14px" }}><Badge config={a.type === "case_close" ? { label: "Kapatma", bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" } : a.type === "case_reopen" ? { label: "Yeniden Açma", bg: "#EDE9FE", color: "#5B21B6", border: "#DDD6FE" } : { label: "Silme", bg: "#FEE2E2", color: "#991B1B", border: "#FECACA" }} /></td>
                       <td style={{ padding: "12px 14px", fontWeight: 700, color: COLORS.primary }}>#{a.caseId}</td><td style={{ padding: "12px 14px", fontWeight: 600 }}>{a.caseName}</td><td style={{ padding: "12px 14px", color: COLORS.textSecondary }}>{a.requestedBy}</td><td style={{ padding: "12px 14px", color: COLORS.textSecondary, fontSize: 12 }}>{a.requestedAt}</td><td style={{ padding: "12px 14px", color: COLORS.textSecondary, fontSize: 12 }}>{a.reason}</td>
