@@ -818,7 +818,7 @@ function ExternalReviewerFlow({ onBack }) {
               <I.Mail />
               <div>
                 <div style={{ fontSize: 11, color: C.textSecondary }}>Davet gönderen</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Burak Şen — Fraud Case Manager</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Burak Şen — NEXUS</div>
               </div>
             </div>
 
@@ -894,7 +894,7 @@ function ExternalReviewerFlow({ onBack }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, fontFamily: "'JetBrains Mono', monospace" }}>S</div>
           <div>
-            <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>Fraud Case Manager</span>
+            <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>NEXUS</span>
             <span style={{ fontSize: 11, color: C.textSecondary, marginLeft: 8 }}>Dış İnceleme Portalı</span>
           </div>
         </div>
@@ -1047,8 +1047,8 @@ function InternalReviewPage({ currentRole, user, onViewExternal }) {
           <div style={{ padding: "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, minHeight: 72 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono', monospace" }}>S</div>
             <div>
-              <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>Fraud Case Manager</div>
-              <div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div>
+              <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>NEXUS</div>
+              <div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>v1.0</div>
             </div>
           </div>
           <nav style={{ flex: 1, padding: "8px 10px", overflow: "auto" }}>
@@ -1140,7 +1140,7 @@ function InternalReviewPage({ currentRole, user, onViewExternal }) {
         {/* Logo */}
         <div style={{ padding: sidebarCollapsed ? "20px 16px" : "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, minHeight: 72 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>S</div>
-          {!sidebarCollapsed && <div><div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>Fraud Case Manager</div><div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div></div>}
+          {!sidebarCollapsed && <div><div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>NEXUS</div><div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>v1.0</div></div>}
         </div>
 
         {/* Domain */}

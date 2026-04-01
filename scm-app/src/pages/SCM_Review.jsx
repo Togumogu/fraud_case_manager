@@ -1020,7 +1020,7 @@ function ExternalReviewerFlow({ onBack }) {
               <I.Mail />
               <div>
                 <div style={{ fontSize: 11, color: C.textSecondary }}>Davet gönderen</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Burak Şen — Fraud Case Manager</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Burak Şen — NEXUS</div>
               </div>
             </div>
 
@@ -1095,7 +1095,7 @@ function ExternalReviewerFlow({ onBack }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg, #3B82F6, #1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, fontFamily: "'JetBrains Mono', monospace" }}>S</div>
           <div>
-            <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>Fraud Case Manager</span>
+            <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>NEXUS</span>
             <span style={{ fontSize: 11, color: C.textSecondary, marginLeft: 8 }}>Dış İnceleme Portalı</span>
           </div>
         </div>

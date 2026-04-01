@@ -1,5 +1,5 @@
 /**
- * Card — reusable card component family for Fraud Case Manager
+ * Card — reusable card component family for NEXUS
  *
  * Variants:
  *   <Card>              — base wrapper, compose freely

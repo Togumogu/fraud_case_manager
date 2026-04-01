@@ -1,5 +1,5 @@
 /**
- * Fraud Case Manager — FilterBar
+ * NEXUS — FilterBar
  *
  * Composable filter system. Use FilterBar.Toggle for the button and
  * FilterBar.Panel as the collapsible container for filter groups.

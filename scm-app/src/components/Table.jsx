@@ -1,5 +1,5 @@
 /**
- * Table — production-grade data table for Fraud Case Manager
+ * Table — production-grade data table for NEXUS
  *
  * Features:
  *   - Sortable columns (client-side by default, or server-side via onSort)

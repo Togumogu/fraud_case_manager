@@ -15,7 +15,7 @@ const ClearIcon = () => (
 );
 
 /**
- * Fraud Case Manager — SearchInput
+ * NEXUS — SearchInput
  *
  * Controlled search input with a left magnifier icon and an animated
  * clear (×) button that appears only when the input has a value.

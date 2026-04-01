@@ -263,7 +263,7 @@ export default function SCMReports({ onNavigate } = {}) {
         <div style={{padding:sidebarCollapsed?"20px 12px 12px":"20px 20px 12px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:36,height:36,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#3B82F6,#1E40AF)",fontSize:16,fontWeight:700,color:"#fff"}}>S</div>
-            {!sidebarCollapsed&&<div><div style={{fontSize:14,fontWeight:700,color:"#F8FAFC",letterSpacing:"-0.02em"}}>Fraud Case Manager</div></div>}
+            {!sidebarCollapsed&&<div><div style={{fontSize:14,fontWeight:700,color:"#F8FAFC",letterSpacing:"-0.02em"}}>NEXUS</div></div>}
           </div>
         </div>
         <div style={{padding:sidebarCollapsed?"10px 8px":"10px 14px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
@@ -439,7 +439,7 @@ export default function SCMReports({ onNavigate } = {}) {
                         {/* Header */}
                         <div style={{borderBottom:"2px solid #2B579A",paddingBottom:10,marginBottom:20,display:"flex",alignItems:"flex-end",justifyContent:"space-between"}}>
                           <div>
-                            <div style={{fontSize:9,color:"#666",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>Fraud Case Manager — Vaka Yönetim Sistemi</div>
+                            <div style={{fontSize:9,color:"#666",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>NEXUS — Vaka Yönetim Sistemi</div>
                             <div style={{fontSize:20,fontWeight:700,color:"#2B579A",lineHeight:1.2}}>{selectedReport?.name}</div>
                           </div>
                           <div style={{textAlign:"right",fontSize:9,color:"#888"}}>
@@ -481,7 +481,7 @@ export default function SCMReports({ onNavigate } = {}) {
                         </table>
                         {/* Footer */}
                         <div style={{borderTop:"1px solid #C5D3E8",paddingTop:8,display:"flex",justifyContent:"space-between",fontSize:8.5,color:"#999"}}>
-                          <span>Fraud Case Manager — Gizli</span>
+                          <span>NEXUS — Gizli</span>
                           <span>1 / 1</span>
                         </div>
                       </div>

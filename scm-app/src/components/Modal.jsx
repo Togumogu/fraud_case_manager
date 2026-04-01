@@ -1,5 +1,5 @@
 /**
- * Modal — generic overlay + dialog wrapper for Fraud Case Manager
+ * Modal — generic overlay + dialog wrapper for NEXUS
  *
  * Usage:
  *   {showModal && (

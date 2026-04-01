@@ -383,7 +383,7 @@ export default function SCMReports({ onNavigate, currentRole = "analyst", onRole
                         {/* Header */}
                         <div style={{borderBottom:"2px solid #2B579A",paddingBottom:10,marginBottom:20,display:"flex",alignItems:"flex-end",justifyContent:"space-between"}}>
                           <div>
-                            <div style={{fontSize:9,color:"#666",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>Fraud Case Manager — Vaka Yönetim Sistemi</div>
+                            <div style={{fontSize:9,color:"#666",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>NEXUS — Vaka Yönetim Sistemi</div>
                             <div style={{fontSize:20,fontWeight:700,color:"#2B579A",lineHeight:1.2}}>{selectedReport?.name}</div>
                           </div>
                           <div style={{textAlign:"right",fontSize:9,color:"#888"}}>
@@ -425,7 +425,7 @@ export default function SCMReports({ onNavigate, currentRole = "analyst", onRole
                         </table>
                         {/* Footer */}
                         <div style={{borderTop:"1px solid #C5D3E8",paddingTop:8,display:"flex",justifyContent:"space-between",fontSize:8.5,color:"#999"}}>
-                          <span>Fraud Case Manager — Gizli</span>
+                          <span>NEXUS — Gizli</span>
                           <span>1 / 1</span>
                         </div>
                       </div>

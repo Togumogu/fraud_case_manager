@@ -217,8 +217,8 @@ export default function Sidebar({
         <img src={appIcon} alt="SCM" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
         {!collapsed && (
           <div style={{ overflow: "hidden", flex: 1 }}>
-            <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>Fraud Case Manager</div>
-            <div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div>
+            <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>NEXUS</div>
+            <div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>v1.0</div>
           </div>
         )}
         {onCollapseToggle && (
