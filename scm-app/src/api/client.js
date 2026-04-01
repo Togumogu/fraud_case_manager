@@ -117,19 +117,17 @@ export const approvals = {
 };
 
 // ─── Dashboard ───
+const qs = (params) => {
+  const s = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''))).toString();
+  return s ? '?' + s : '';
+};
 export const dashboard = {
-  kpis: (params = {}) => {
-    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''))).toString();
-    return get(`/dashboard/kpis${qs ? '?' + qs : ''}`);
-  },
-  activity: (params = {}) => {
-    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''))).toString();
-    return get(`/dashboard/activity${qs ? '?' + qs : ''}`);
-  },
-  unassignedCases: (params = {}) => {
-    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''))).toString();
-    return get(`/dashboard/unassigned-cases${qs ? '?' + qs : ''}`);
-  },
+  kpis: (params = {}) => get(`/dashboard/kpis${qs(params)}`),
+  activity: (params = {}) => get(`/dashboard/activity${qs(params)}`),
+  unassignedCases: (params = {}) => get(`/dashboard/unassigned-cases${qs(params)}`),
+  trends: (params = {}) => get(`/dashboard/trends${qs(params)}`),
+  severityDistribution: (params = {}) => get(`/dashboard/severity-distribution${qs(params)}`),
+  domainHeatmap: () => get('/dashboard/domain-heatmap'),
 };
 
 export default { fdm, cases, transactions, comments, attachments, history, reviews, relations, users, settings, approvals, dashboard };

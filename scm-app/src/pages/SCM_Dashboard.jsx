@@ -3,6 +3,7 @@ import Sidebar from "../components/Sidebar";
 import Card from "../components/Card";
 import Table from "../components/Table";
 import { SEVERITY_CONFIG } from "../components/Badge";
+import Charts from "../components/Charts";
 import { dashboard as dashboardApi, approvals as approvalsApi, cases as casesApi } from "../api/client";
 
 // --- Mock Data ---
@@ -59,6 +60,27 @@ const FRAUD_DOMAINS = [
   { id: "application", label: "Application Fraud", icon: "📋", color: "#F59E0B" },
   { id: "account_takeover", label: "Account Takeover", icon: "🔓", color: "#EF4444" },
   { id: "internal", label: "Internal Fraud", icon: "🏢", color: "#6366F1" },
+];
+
+// --- Mock analytics data (fallback when API is unavailable) ---
+const MOCK_TRENDS = {
+  months: ["Eki 2025", "Kas 2025", "Ara 2025", "Oca 2026", "Şub 2026", "Mar 2026"],
+  created: [8, 12, 10, 15, 13, 18],
+  closed: [5, 9, 8, 11, 10, 14],
+  transactions: [35, 52, 48, 68, 60, 82],
+};
+
+const MOCK_SEVERITY = {
+  cases: { critical: 8, high: 22, medium: 32, low: 12 },
+  transactions: { Critical: 38, High: 112, Medium: 195, Low: 118 },
+};
+
+const MOCK_HEATMAP = [
+  { domain_id: "payment", label: "Payment Fraud", color: "#0891B2", totalCases: 18, openCases: 8, closedCases: 10, criticalCount: 3, highCount: 5, totalAmount: 245000, txnCount: 120, avgScore: 72 },
+  { domain_id: "credit_card", label: "Credit Card Fraud", color: "#8B5CF6", totalCases: 14, openCases: 6, closedCases: 8, criticalCount: 2, highCount: 4, totalAmount: 180000, txnCount: 95, avgScore: 68 },
+  { domain_id: "application", label: "Application Fraud", color: "#F59E0B", totalCases: 10, openCases: 4, closedCases: 6, criticalCount: 1, highCount: 3, totalAmount: 120000, txnCount: 72, avgScore: 61 },
+  { domain_id: "account_takeover", label: "Account Takeover", color: "#EF4444", totalCases: 6, openCases: 3, closedCases: 3, criticalCount: 2, highCount: 2, totalAmount: 95000, txnCount: 48, avgScore: 75 },
+  { domain_id: "internal", label: "Internal Fraud", color: "#6366F1", totalCases: 4, openCases: 2, closedCases: 2, criticalCount: 1, highCount: 1, totalAmount: 55000, txnCount: 28, avgScore: 65 },
 ];
 
 // --- Icons as SVG components ---
@@ -150,6 +172,10 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
   const [pendingApprovals, setPendingApprovals] = useState(PENDING_APPROVALS);
   const [unassignedCases, setUnassignedCases] = useState(UNASSIGNED_CASES);
   const [panelsLoading, setPanelsLoading] = useState(true);
+  const [trendsData, setTrendsData] = useState(null);
+  const [severityData, setSeverityData] = useState(null);
+  const [heatmapData, setHeatmapData] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
   const user = USERS[currentRole];
   const isManager = currentRole === "manager" || currentRole === "admin";
@@ -158,6 +184,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
     let cancelled = false;
     setKpiLoading(true);
     setPanelsLoading(true);
+    setAnalyticsLoading(true);
     // Try to load from API; fall back to mock constants on error
     Promise.all([
       dashboardApi.kpis({ domain: selectedDomain }),
@@ -217,6 +244,26 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
       setPanelsLoading(false);
       if (showToast) showToast("error", err?.message || "Dashboard verileri yüklenemedi");
     });
+
+    // Analytics data — fetched separately so it doesn't block KPI/panels
+    Promise.all([
+      dashboardApi.trends({ domain: selectedDomain, months: 6 }),
+      dashboardApi.severityDistribution({ domain: selectedDomain }),
+      dashboardApi.domainHeatmap(),
+    ]).then(([trends, severity, heatmap]) => {
+      if (cancelled) return;
+      setTrendsData(trends);
+      setSeverityData(severity);
+      setHeatmapData(heatmap);
+      setAnalyticsLoading(false);
+    }).catch(() => {
+      if (cancelled) return;
+      setTrendsData(MOCK_TRENDS);
+      setSeverityData(MOCK_SEVERITY);
+      setHeatmapData(MOCK_HEATMAP);
+      setAnalyticsLoading(false);
+    });
+
     return () => { cancelled = true; };
   }, [currentRole, selectedDomain]);
 
@@ -459,6 +506,40 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
                   />
                 ))
             }
+          </div>
+
+          {/* ── Analytics Section ─────────────────────────────── */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: COLORS.text }}>Analitik</h2>
+                <p style={{ margin: 0, fontSize: 11.5, color: COLORS.textSecondary }}>Son 6 ay · {(fraudDomains || FRAUD_DOMAINS).find(d => d.id === selectedDomain)?.label || selectedDomain}</p>
+              </div>
+            </div>
+
+            {/* Row A: Trend + Severity (all roles) */}
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16 }}>
+              <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, padding: "18px 22px" }}>
+                <h3 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Vaka & İşlem Trendi</h3>
+                <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>Aylık açılan/kapatılan vaka ve işlem hacmi</p>
+                <Charts.TrendLine data={trendsData} loading={analyticsLoading} />
+              </div>
+              <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, padding: "18px 22px" }}>
+                <h3 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Önem Dağılımı</h3>
+                <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>Açık vakalar</p>
+                <Charts.SeverityDonut data={severityData} loading={analyticsLoading} />
+              </div>
+            </div>
+
+            {/* Row B: Domain Heatmap (manager, admin, super) */}
+            {(currentRole === "manager" || currentRole === "admin" || currentRole === "super") && (
+              <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, padding: "18px 22px", marginBottom: 16 }}>
+                <h3 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Domain Karşılaştırması</h3>
+                <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>Tüm domainlerde açık / kapalı vaka dağılımı</p>
+                <Charts.DomainHeatmap data={heatmapData} loading={analyticsLoading} />
+              </div>
+            )}
+
           </div>
 
           {/* Row 2: Panels */}
