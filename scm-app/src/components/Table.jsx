@@ -1,5 +1,5 @@
 /**
- * Table — production-grade data table for SADE SCM
+ * Table — production-grade data table for Fraud Case Manager
  *
  * Features:
  *   - Sortable columns (client-side by default, or server-side via onSort)

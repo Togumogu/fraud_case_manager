@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   SADE SCM — Design Tokens
+   Fraud Case Manager — Design Tokens
    Two-layer: primitives (raw hex) → semantic (role names)
    Components only reference the semantic layer.
    Dark mode overrides the semantic layer only.

@@ -16,7 +16,7 @@ The React Compiler is not enabled on this template because of its impact on dev 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
 
 Purpose & context
-Toygun is building SADE SCM — a Turkish-language banking fraud case management platform. The system integrates with FDM (Fraud Data Mart) as a read-only transaction source and SAS SFD (fraud detection/scoring engine). Roles include Fraud Analyst (Analist), Manager (Yönetici), and Admin. Authentication is handled via KeyCloak (OIDC), with LDAP and local user support.
+Toygun is building Fraud Case Manager — a Turkish-language banking fraud case management platform. The system integrates with FDM (Fraud Data Mart) as a read-only transaction source and SAS SFD (fraud detection/scoring engine). Roles include Fraud Analyst (Analist), Manager (Yönetici), and Admin. Authentication is handled via KeyCloak (OIDC), with LDAP and local user support.
 Core architecture principles:
 
 SCM does not perform fraud marking. Transactions are already marked upstream by Alert Triage ("Send to Case Manager") and flow through FDM to SCM's Transaction Management screen
@@ -28,7 +28,7 @@ All data stored in FDM via REST API; no separate PostgreSQL schema for SCM core 
 Key domain terminology: vaka (case), işlem (transaction), senaryo, aksiyon, alert, havuz (pool), domain switcher, SLA raporu, maker-checker, İnceleme (review), Onay Bekleyenler (pending approvals), Vakalarım (my cases), varlık (entity), Üst Vaka (parent case), Alt Vaka (child case), Kardeş Vaka (sibling case)
 
 Current state
-Toygun is actively building React JSX UI components for SADE SCM, working screen by screen from a technical specification document (SCM_Teknik_Spesifikasyon) and flow diagram images. Components completed or in progress:
+Toygun is actively building React JSX UI components for Fraud Case Manager, working screen by screen from a technical specification document (SCM_Teknik_Spesifikasyon) and flow diagram images. Components completed or in progress:
 
 SCM_Dashboard.jsx — collapsible dark sidebar, KPI cards, domain switcher, notification panel in sidebar, role-based panels (Pending Approvals for manager/admin, Unassigned Cases table)
 SCM_CaseCreation.jsx — transaction list with fraud scores, severity badges, collapsible filter panel, "Yeni Vaka Oluştur" modal with parent case selector, domain locked to sidebar selection, role-differentiated assignment rules

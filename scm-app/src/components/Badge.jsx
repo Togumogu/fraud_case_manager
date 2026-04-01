@@ -1,5 +1,5 @@
 /**
- * Badge — status / severity pill for SADE SCM
+ * Badge — status / severity pill for Fraud Case Manager
  *
  * A standalone version of Table.Badge that can be used anywhere —
  * in headers, detail panels, activity feeds, and inside table cells.

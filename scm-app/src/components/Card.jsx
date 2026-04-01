@@ -1,5 +1,5 @@
 /**
- * Card — reusable card component family for SADE SCM
+ * Card — reusable card component family for Fraud Case Manager
  *
  * Variants:
  *   <Card>              — base wrapper, compose freely

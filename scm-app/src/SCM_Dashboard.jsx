@@ -185,7 +185,7 @@ export default function SCMDashboard({ onNavigate } = {}) {
           </div>
           {!sidebarCollapsed && (
             <div style={{ overflow: "hidden" }}>
-              <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>SADE SCM</div>
+              <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>Fraud Case Manager</div>
               <div style={{ color: "#64748B", fontSize: 11, letterSpacing: "0.03em" }}>Vaka Yöneticisi v1.0</div>
             </div>
           )}

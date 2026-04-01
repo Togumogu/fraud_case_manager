@@ -131,7 +131,7 @@
         <mxCell id="w0BCV6PIqos6b8IKKFUl-48" value="Banka" style="rounded=0;whiteSpace=wrap;html=1;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;fontFamily=Helvetica;fontStyle=1;fontSize=16;" parent="1" vertex="1">
           <mxGeometry x="-650" y="130" width="190" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="w0BCV6PIqos6b8IKKFUl-49" value="Sade Implementation/Product" style="rounded=0;whiteSpace=wrap;html=1;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;fontFamily=Helvetica;fontStyle=1;fontSize=16;" parent="1" vertex="1">
+        <mxCell id="w0BCV6PIqos6b8IKKFUl-49" value="FCM Implementation/Product" style="rounded=0;whiteSpace=wrap;html=1;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;fontFamily=Helvetica;fontStyle=1;fontSize=16;" parent="1" vertex="1">
           <mxGeometry x="-40" y="130" width="270" height="50" as="geometry" />
         </mxCell>
         <mxCell id="w0BCV6PIqos6b8IKKFUl-52" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;" parent="1" source="w0BCV6PIqos6b8IKKFUl-50" target="w0BCV6PIqos6b8IKKFUl-51" edge="1">
@@ -181,7 +181,7 @@
         <mxCell id="2hVNwTbRb3q9RA_89o3L-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelBackgroundColor=none;strokeColor=#A8201A;fontColor=default;" edge="1" parent="1" source="2hVNwTbRb3q9RA_89o3L-2" target="2hVNwTbRb3q9RA_89o3L-1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="2hVNwTbRb3q9RA_89o3L-2" value="Sade Analitik" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#111BFA;labelBackgroundColor=none;strokeColor=#0F8B8D;fontColor=#143642;" vertex="1" parent="1">
+        <mxCell id="2hVNwTbRb3q9RA_89o3L-2" value="Fraud Analitik" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#111BFA;labelBackgroundColor=none;strokeColor=#0F8B8D;fontColor=#143642;" vertex="1" parent="1">
           <mxGeometry x="60" y="140" width="30" height="60" as="geometry" />
         </mxCell>
         <mxCell id="2hVNwTbRb3q9RA_89o3L-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=none;strokeColor=#A8201A;fontColor=default;" edge="1" parent="1" source="2hVNwTbRb3q9RA_89o3L-5" target="2hVNwTbRb3q9RA_89o3L-9">
@@ -193,7 +193,7 @@
         <mxCell id="2hVNwTbRb3q9RA_89o3L-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelBackgroundColor=none;strokeColor=#A8201A;fontColor=default;" edge="1" parent="1" source="2hVNwTbRb3q9RA_89o3L-7" target="2hVNwTbRb3q9RA_89o3L-5">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="2hVNwTbRb3q9RA_89o3L-7" value="Sade Fraud&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;strokeColor=#0F8B8D;fillColor=#29FA13;labelBackgroundColor=none;fontColor=#143642;" vertex="1" parent="1">
+        <mxCell id="2hVNwTbRb3q9RA_89o3L-7" value="Fraud&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;strokeColor=#0F8B8D;fillColor=#29FA13;labelBackgroundColor=none;fontColor=#143642;" vertex="1" parent="1">
           <mxGeometry x="60" y="380" width="30" height="60" as="geometry" />
         </mxCell>
         <mxCell id="2hVNwTbRb3q9RA_89o3L-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=none;strokeColor=#A8201A;fontColor=default;" edge="1" parent="1" source="2hVNwTbRb3q9RA_89o3L-9">
@@ -258,7 +258,7 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="2hVNwTbRb3q9RA_89o3L-21" value="Sade Fraud&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;strokeColor=#0F8B8D;fillColor=#49FA15;labelBackgroundColor=none;fontColor=#143642;" vertex="1" parent="1">
+        <mxCell id="2hVNwTbRb3q9RA_89o3L-21" value="Fraud&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;strokeColor=#0F8B8D;fillColor=#49FA15;labelBackgroundColor=none;fontColor=#143642;" vertex="1" parent="1">
           <mxGeometry x="525" y="750" width="30" height="60" as="geometry" />
         </mxCell>
         <mxCell id="2hVNwTbRb3q9RA_89o3L-29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=none;strokeColor=#A8201A;fontColor=default;" edge="1" parent="1" source="2hVNwTbRb3q9RA_89o3L-27" target="2hVNwTbRb3q9RA_89o3L-28">

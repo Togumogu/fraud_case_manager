@@ -1,5 +1,5 @@
 /**
- * Modal — generic overlay + dialog wrapper for SADE SCM
+ * Modal — generic overlay + dialog wrapper for Fraud Case Manager
  *
  * Usage:
  *   {showModal && (

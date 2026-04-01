@@ -385,7 +385,7 @@ export default function SCMTransactionSearch({ onNavigate } = {}) {
         <div style={{ padding: sidebarCollapsed ? "20px 12px" : "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #3B82F6, #1E40AF)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 16, flexShrink: 0 }}>S</div>
-            {!sidebarCollapsed && <div><div style={{ color: "#F1F5F9", fontWeight: 700, fontSize: 16, letterSpacing: "-0.02em" }}>SADE SCM</div><div style={{ color: "#475569", fontSize: 10, letterSpacing: "0.05em" }}>Case Management</div></div>}
+            {!sidebarCollapsed && <div><div style={{ color: "#F1F5F9", fontWeight: 700, fontSize: 16, letterSpacing: "-0.02em" }}>Fraud Case Manager</div><div style={{ color: "#475569", fontSize: 10, letterSpacing: "0.05em" }}>Case Management</div></div>}
           </div>
         </div>
 

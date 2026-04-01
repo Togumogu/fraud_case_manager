@@ -18,7 +18,7 @@ Your primary workflow is:
 
 ## Project Context
 
-You are reviewing components from **SADE SCM** — a Turkish-language banking fraud case management platform built with React 19 + Vite. Key design conventions you must respect:
+You are reviewing components from **Fraud Case Manager** — a Turkish-language banking fraud case management platform built with React 19 + Vite. Key design conventions you must respect:
 - **Design system:** Dark sidebar `#0F172A`, blue primary `#1E40AF`/`#3B82F6`, amber accent `#F59E0B`, light gray background `#F1F5F9`
 - **Fonts:** DM Sans for UI, JetBrains Mono for IDs/amounts/data fields
 - **100% inline CSS** — no Tailwind, no CSS files, no UI libraries

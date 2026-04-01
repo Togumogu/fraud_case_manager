@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**SADE SCM (Sade Case Management)** is a Turkish-language banking fraud case management platform. Built with React 19 + Vite. Integrates with **FDM (Fraud Data Mart)** as a read-only transaction source and **SAS SFD** as the fraud detection/scoring engine. Authentication via **KeyCloak (OIDC)** with LDAP and local user support.
+**Fraud Case Manager** is a Turkish-language banking fraud case management platform. Built with React 19 + Vite. Integrates with **FDM (Fraud Data Mart)** as a read-only transaction source and **SAS SFD** as the fraud detection/scoring engine. Authentication via **KeyCloak (OIDC)** with LDAP and local user support.
 
 All UI text is bilingual (Turkish primary, English secondary). Dates use DD.MM.YYYY format (tr-TR locale). Currency options are **Orijinal Para Birimi** (from SFD), TRY, USD — EUR is not included.
 
