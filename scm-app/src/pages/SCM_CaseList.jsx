@@ -157,7 +157,7 @@ const CaseDrawer = ({ caseData, onClose, onNavigate }) => {
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading = false, onCaseUpdated, initialNavKey = "cases", currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead, showToast } = {}) {
+export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading = false, onCaseUpdated, initialNavKey = "cases", currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead, showToast, fraudDomains } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const cases = casesProp ?? [];
   const NAVKEY_TO_VIEW = { cases: "case_list", my_cases: "my_cases", pending_approvals: "approvals", deleted_cases: "deleted" };
@@ -308,6 +308,7 @@ export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading
         notifications={notifications}
         onMarkAllRead={onMarkAllRead}
         onMarkRead={onMarkRead}
+        fraudDomains={fraudDomains}
       />
 
       {/* ════════════ MAIN ════════════ */}

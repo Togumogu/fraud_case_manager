@@ -101,6 +101,9 @@ export const settings = {
   getDomain: (domainId) => get(`/settings/domains/${domainId}`),
   updateDomain: (domainId, body) => patch(`/settings/domains/${domainId}`, body),
   auditLog: () => get('/settings/audit-log'),
+  domainList: () => get('/settings/domain-list'),
+  createDomain: (body) => post('/settings/domain-list', body),
+  deleteDomain: (id) => del(`/settings/domain-list/${id}`),
 };
 
 // ─── Approvals ───

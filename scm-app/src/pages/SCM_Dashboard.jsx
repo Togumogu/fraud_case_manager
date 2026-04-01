@@ -141,7 +141,7 @@ const COLORS = {
   danger: "#DC2626",
 };
 
-export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, cases, notifications = [], onMarkAllRead, onMarkRead, showToast } = {}) {
+export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, cases, notifications = [], onMarkAllRead, onMarkRead, showToast, fraudDomains } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [assignDropdown, setAssignDropdown] = useState(null);
   const [animatedKPIs, setAnimatedKPIs] = useState({});
@@ -372,6 +372,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
         notifications={notifications}
         onMarkAllRead={onMarkAllRead}
         onMarkRead={onMarkRead}
+        fraudDomains={fraudDomains}
       />
 
       {/* Main Content */}

@@ -9,7 +9,7 @@ import SCMReports from "./pages/SCM_Reports";
 import SCMSettings from "./pages/SCM_Settings";
 import SCMActivities from "./pages/SCM_Activities";
 import Toast from "./components/Toast";
-import { cases as casesApi, fdm as fdmApi } from "./api/client";
+import { cases as casesApi, fdm as fdmApi, settings as settingsApi } from "./api/client";
 import { generateCases, generateTransactions, DOMAIN_TO_SOURCE } from "./data/mockData";
 
 // Nav key → canonical page key
@@ -70,6 +70,22 @@ export default function SCMApp() {
     }
     // super can see everything — no page restriction needed
   };
+
+  // ── Domain list (dynamic, loaded from API) ──
+  const DEFAULT_DOMAINS = [
+    { id: "payment",          label: "Payment Fraud",       icon: "₺",  color: "#0891B2" },
+    { id: "credit_card",      label: "Credit Card Fraud",   icon: "💳", color: "#8B5CF6" },
+    { id: "application",      label: "Application Fraud",   icon: "📋", color: "#F59E0B" },
+    { id: "account_takeover", label: "Account Takeover",    icon: "🔓", color: "#EF4444" },
+    { id: "internal",         label: "Internal Fraud",      icon: "🏢", color: "#6366F1" },
+  ];
+  const [fraudDomains, setFraudDomains] = useState(DEFAULT_DOMAINS);
+
+  useEffect(() => {
+    settingsApi.domainList().then(rows => {
+      if (rows && rows.length > 0) setFraudDomains(rows);
+    }).catch(() => {});
+  }, []);
 
   // ── Shared state ──
   const [cases,        setCases]        = useState(() => generateCases());
@@ -246,7 +262,7 @@ export default function SCMApp() {
   const pendingApprovalsCount = cases.filter(c => c.status === "Pending Closure").length;
   const reviewCount = cases.filter(c => c.status === "Under Review").length;
 
-  const p = { onNavigate: navigate, currentRole, onRoleChange, selectedDomain, onDomainChange, myCasesCount, pendingApprovalsCount, reviewCount, notifications, addNotification, onMarkAllRead: markAllRead, onMarkRead: markRead, showToast };
+  const p = { onNavigate: navigate, currentRole, onRoleChange, selectedDomain, onDomainChange, myCasesCount, pendingApprovalsCount, reviewCount, notifications, addNotification, onMarkAllRead: markAllRead, onMarkRead: markRead, showToast, fraudDomains, onDomainsChange: setFraudDomains };
 
   return (
     <>

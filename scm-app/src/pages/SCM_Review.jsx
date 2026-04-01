@@ -1180,7 +1180,7 @@ function ExternalReviewerFlow({ onBack }) {
 
 // ─── INTERNAL REVIEW PAGE ────────────────────────────────────────────────────
 
-function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, onNavigate, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead, selectedDomain = "payment", onDomainChange }) {
+function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, onNavigate, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead, selectedDomain = "payment", onDomainChange, fraudDomains }) {
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedReview, setSelectedReview] = useState(null);
   const [reviewCaseData, setReviewCaseData] = useState(null);
@@ -1350,6 +1350,7 @@ function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, o
           notifications={notifications}
           onMarkAllRead={onMarkAllRead}
           onMarkRead={onMarkRead}
+          fraudDomains={fraudDomains}
         />
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -1438,6 +1439,7 @@ function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, o
         notifications={notifications}
         onMarkAllRead={onMarkAllRead}
         onMarkRead={onMarkRead}
+        fraudDomains={fraudDomains}
       />
 
       {/* Main */}
@@ -1569,7 +1571,7 @@ function InternalReviewPage({ currentRole, onRoleChange, user, onViewExternal, o
 
 // ─── MAIN APP ────────────────────────────────────────────────────────────────
 
-export default function SCMReview({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead } = {}) {
+export default function SCMReview({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], onMarkAllRead, onMarkRead, fraudDomains } = {}) {
   const [viewMode, setViewMode] = useState("internal");
   const user = USERS[currentRole];
 
@@ -1592,6 +1594,8 @@ export default function SCMReview({ onNavigate, currentRole = "analyst", onRoleC
       onMarkRead={onMarkRead}
       selectedDomain={selectedDomain}
       onDomainChange={onDomainChange}
+      fraudDomains={fraudDomains}
     />
+
   );
 }

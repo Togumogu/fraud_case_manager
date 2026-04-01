@@ -117,7 +117,7 @@ const PAGE_SIZE_OPTIONS = [
   { value: "50", label: "50 / sayfa" },
 ];
 
-export default function SCMActivities({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, notifications = [], onMarkAllRead, onMarkRead, showToast } = {}) {
+export default function SCMActivities({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, notifications = [], onMarkAllRead, onMarkRead, showToast, fraudDomains } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -242,6 +242,7 @@ export default function SCMActivities({ onNavigate, currentRole = "analyst", onR
         notifications={notifications}
         onMarkAllRead={onMarkAllRead}
         onMarkRead={onMarkRead}
+        fraudDomains={fraudDomains}
       />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>

@@ -203,7 +203,7 @@ const HISTORY_FILTER_CHIPS = [
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], addNotification, onMarkAllRead, onMarkRead, showToast: showToastProp } = {}) {
+export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, myCasesCount = 0, pendingApprovalsCount = 0, reviewCount = 0, notifications = [], addNotification, onMarkAllRead, onMarkRead, showToast: showToastProp, fraudDomains } = {}) {
   const baseCase = initialCase ? { ...initialCase } : {};
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -272,12 +272,14 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
   const [toast, setToast] = useState(null);
   const [subResourcesLoading, setSubResourcesLoading] = useState(true);
   const [caseDeleteEnabled, setCaseDeleteEnabled] = useState(true);
+  const [caseReopenEnabled, setCaseReopenEnabled] = useState(true);
 
-  // Fetch case_delete_enabled setting for the current domain
+  // Fetch domain settings
   useEffect(() => {
     if (!selectedDomain) return;
     settingsApi.getDomain(selectedDomain).then(data => {
       setCaseDeleteEnabled(data.case_delete_enabled !== undefined ? !!data.case_delete_enabled : true);
+      setCaseReopenEnabled(data.reopen_enabled !== undefined ? !!data.reopen_enabled : true);
     }).catch(() => {});
   }, [selectedDomain]);
 
@@ -335,7 +337,7 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
   const canClose = caseData.status === "Open";
   const canDelete = caseData.status === "Open" && caseDeleteEnabled;
   const canReview = caseData.status === "Open" && currentRole !== "admin";
-  const canReopen = caseData.status === "Closed" && currentRole !== "admin";
+  const canReopen = caseData.status === "Closed" && currentRole !== "admin" && caseReopenEnabled;
   const isReadOnly = caseData.status === "Closed" || caseData.status === "Pending Delete" || caseData.is_deleted === 1;
   const showToast = (t, m) => {
     setToast({ type: t, msg: m });
@@ -558,6 +560,7 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
         notifications={notifications}
         onMarkAllRead={onMarkAllRead}
         onMarkRead={onMarkRead}
+        fraudDomains={fraudDomains}
       />
 
       {/* ── Main ── */}

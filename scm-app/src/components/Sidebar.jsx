@@ -1,6 +1,5 @@
 import { useState } from "react";
 import Avatar from "./Avatar";
-import appIcon from "../assets/Fraud case manager app icon.png";
 
 // ─── Sabit veriler ───────────────────────────────────────────────
 const FRAUD_DOMAINS = [
@@ -163,6 +162,7 @@ export default function Sidebar({
   notifications       = [],
   onMarkAllRead,
   onMarkRead,
+  fraudDomains,
 }) {
   const [domainMenuOpen,  setDomainMenuOpen]  = useState(false);
   const [showNotifPanel,  setShowNotifPanel]  = useState(false);
@@ -202,7 +202,8 @@ export default function Sidebar({
     nav(key);
   };
 
-  const currentDomain = FRAUD_DOMAINS.find(d => d.id === selectedDomain);
+  const DOMAINS = fraudDomains && fraudDomains.length > 0 ? fraudDomains : FRAUD_DOMAINS;
+  const currentDomain = DOMAINS.find(d => d.id === selectedDomain);
 
   return (
     <aside style={{
@@ -214,7 +215,12 @@ export default function Sidebar({
 
       {/* ── Logo + Daraltma Butonu ── */}
       <div style={{ padding: collapsed ? "20px 16px" : "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, minHeight: 72 }}>
-        <img src={appIcon} alt="SCM" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
+        <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: "linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L3 7v10l9 5 9-5V7L12 2z" stroke="white" strokeWidth="1.8" strokeLinejoin="round"/>
+              <path d="M12 2v20M3 7l9 5 9-5" stroke="white" strokeWidth="1.8" strokeLinejoin="round"/>
+            </svg>
+          </div>
         {!collapsed && (
           <div style={{ overflow: "hidden", flex: 1 }}>
             <div style={{ color: "#F8FAFC", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>NEXUS</div>
@@ -261,7 +267,7 @@ export default function Sidebar({
 
           {domainMenuOpen && (
             <div style={{ position: "absolute", top: "calc(100% + 4px)", left: collapsed ? 8 : 0, width: collapsed ? 200 : "100%", background: "#1E293B", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 12px 40px rgba(0,0,0,0.4)", zIndex: 300, overflow: "hidden" }}>
-              {FRAUD_DOMAINS.map(d => (
+              {DOMAINS.map(d => (
                 <div
                   key={d.id}
                   onClick={() => { if (onDomainChange) onDomainChange(d.id); setDomainMenuOpen(false); }}

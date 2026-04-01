@@ -209,19 +209,29 @@ function seedScm() {
 
   // Domain settings
   const insertSetting = db.prepare(`
-    INSERT OR IGNORE INTO domain_settings (domain_id, maker_checker_enabled, notification_enabled, default_currency, close_reasons, reviewer_link_expiry_hours, reviewer_inactivity_timeout_min, reviewer_otp_enabled, case_delete_enabled)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO domain_settings (domain_id, maker_checker_enabled, notification_enabled, default_currency, close_reasons, reviewer_link_expiry_hours, reviewer_inactivity_timeout_min, reviewer_otp_enabled, case_delete_enabled, reopen_enabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const DOMAIN_SETTINGS = {
-    payment:         { mc: 1, notif: 1, cur: "original", reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer","Yanlış Alarm","Kara Listeye Alındı"]', expiry: 72, timeout: 30, otp: 1, del: 1 },
-    credit_card:     { mc: 1, notif: 0, cur: "TRY",      reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer"]', expiry: 72, timeout: 30, otp: 1, del: 1 },
-    application:     { mc: 0, notif: 0, cur: "original", reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer","Başvuru Reddedildi"]', expiry: 48, timeout: 20, otp: 1, del: 1 },
-    account_takeover:{ mc: 1, notif: 1, cur: "TRY",      reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer","Hesap Kurtarıldı"]', expiry: 72, timeout: 30, otp: 1, del: 1 },
-    internal:        { mc: 1, notif: 0, cur: "TRY",      reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer","Disiplin Sürecine Alındı"]', expiry: 96, timeout: 15, otp: 1, del: 1 },
+    payment:         { mc: 1, notif: 1, cur: "original", reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer","Yanlış Alarm","Kara Listeye Alındı"]', expiry: 72, timeout: 30, otp: 1, del: 1, reopen: 1 },
+    credit_card:     { mc: 1, notif: 0, cur: "TRY",      reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer"]', expiry: 72, timeout: 30, otp: 1, del: 1, reopen: 1 },
+    application:     { mc: 0, notif: 0, cur: "original", reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer","Başvuru Reddedildi"]', expiry: 48, timeout: 20, otp: 1, del: 1, reopen: 1 },
+    account_takeover:{ mc: 1, notif: 1, cur: "TRY",      reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer","Hesap Kurtarıldı"]', expiry: 72, timeout: 30, otp: 1, del: 1, reopen: 1 },
+    internal:        { mc: 1, notif: 0, cur: "TRY",      reasons: '["Soruşturma Tamamlandı","Çözüme Kavuşturuldu","Mükerrer","Disiplin Sürecine Alındı"]', expiry: 96, timeout: 15, otp: 1, del: 1, reopen: 1 },
   };
   for (const [domId, s] of Object.entries(DOMAIN_SETTINGS)) {
-    insertSetting.run(domId, s.mc, s.notif, s.cur, s.reasons, s.expiry, s.timeout, s.otp, s.del);
+    insertSetting.run(domId, s.mc, s.notif, s.cur, s.reasons, s.expiry, s.timeout, s.otp, s.del, s.reopen);
   }
+
+  // Domains list
+  const insertDomain = db.prepare(`
+    INSERT OR IGNORE INTO domains (id, label, icon, color, sort_order) VALUES (?, ?, ?, ?, ?)
+  `);
+  insertDomain.run('payment',          'Payment Fraud',       '₺',  '#0891B2', 0);
+  insertDomain.run('credit_card',      'Credit Card Fraud',   '💳', '#8B5CF6', 1);
+  insertDomain.run('application',      'Application Fraud',   '📋', '#F59E0B', 2);
+  insertDomain.run('account_takeover', 'Account Takeover',    '🔓', '#EF4444', 3);
+  insertDomain.run('internal',         'Internal Fraud',      '🏢', '#6366F1', 4);
 
   // Settings audit log
   const insertAudit = db.prepare(`

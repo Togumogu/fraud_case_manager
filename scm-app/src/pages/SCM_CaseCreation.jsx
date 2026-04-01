@@ -158,7 +158,8 @@ const formatCurrency = (amount, currency) => {
 };
 
 // ─── Main Component ───
-export default function SCMCaseCreation({ onNavigate, transactions: transactionsProp, cases: casesProp, onCaseCreated, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, notifications = [], onMarkAllRead, onMarkRead, showToast: showToastProp } = {}) {
+export default function SCMCaseCreation({ onNavigate, transactions: transactionsProp, cases: casesProp, onCaseCreated, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, notifications = [], onMarkAllRead, onMarkRead, showToast: showToastProp, fraudDomains } = {}) {
+  const DOMAINS = fraudDomains && fraudDomains.length > 0 ? fraudDomains : FRAUD_DOMAINS;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Filter state
@@ -419,6 +420,7 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
         notifications={notifications}
         onMarkAllRead={onMarkAllRead}
         onMarkRead={onMarkRead}
+        fraudDomains={fraudDomains}
       />
 
       {/* ── Main Content ── */}
@@ -919,8 +921,8 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
                     ...inputStyle, display: "flex", alignItems: "center", gap: 8,
                     background: "#F1F5F9", color: C.textSecondary, cursor: "not-allowed",
                   }}>
-                    <span style={{ fontSize: 14 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.icon}</span>
-                    <span style={{ fontWeight: 500, color: C.text }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label}</span>
+                    <span style={{ fontSize: 14 }}>{DOMAINS.find(d => d.id === selectedDomain)?.icon}</span>
+                    <span style={{ fontWeight: 500, color: C.text }}>{DOMAINS.find(d => d.id === selectedDomain)?.label}</span>
                     <span style={{ marginLeft: "auto", display: "flex", color: "#94A3B8" }}><Icons.Lock /></span>
                   </div>
                   <span style={{ fontSize: 11, color: C.textSecondary, marginTop: 4, display: "block" }}>Sistem domain seçiminize göre belirlenir</span>
@@ -1046,7 +1048,7 @@ export default function SCMCaseCreation({ onNavigate, transactions: transactions
                         })
                         .map(c => {
                           const sevCfg = SEV_COLORS[c.severity.charAt(0).toUpperCase() + c.severity.slice(1)] || SEV_COLORS.Medium;
-                          const domainInfo = FRAUD_DOMAINS.find(d => d.id === c.domain);
+                          const domainInfo = DOMAINS.find(d => d.id === c.domain);
                           return (
                             <div
                               key={c.id}

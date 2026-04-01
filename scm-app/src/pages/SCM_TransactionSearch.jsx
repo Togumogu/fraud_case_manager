@@ -117,7 +117,7 @@ const Badge = ({ config }) => (
 // ════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ════════════════════════════════════════════════════════
-export default function SCMTransactionSearch({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, transactions: txnsProp, notifications = [], onMarkAllRead, onMarkRead } = {}) {
+export default function SCMTransactionSearch({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, transactions: txnsProp, notifications = [], onMarkAllRead, onMarkRead, fraudDomains } = {}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -233,6 +233,7 @@ export default function SCMTransactionSearch({ onNavigate, currentRole = "analys
         notifications={notifications}
         onMarkAllRead={onMarkAllRead}
         onMarkRead={onMarkRead}
+        fraudDomains={fraudDomains}
       />
 
       {/* ════════ MAIN ════════ */}

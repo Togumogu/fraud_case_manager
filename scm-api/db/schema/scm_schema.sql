@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS domain_settings (
   reviewer_inactivity_timeout_min INTEGER DEFAULT 30,
   reviewer_otp_enabled INTEGER DEFAULT 1,
   case_delete_enabled INTEGER DEFAULT 1,
+  reopen_enabled INTEGER DEFAULT 1,
   updated_at TEXT DEFAULT (datetime('now')),
   updated_by TEXT
 );
@@ -140,4 +141,15 @@ CREATE TABLE IF NOT EXISTS settings_audit_log (
   new_value TEXT,
   ip TEXT DEFAULT '10.0.1.45',
   timestamp TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS domains (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  icon TEXT DEFAULT '🔍',
+  color TEXT DEFAULT '#64748B',
+  is_active INTEGER DEFAULT 1,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  created_by TEXT
 );

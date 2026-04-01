@@ -29,6 +29,7 @@ const DOMAIN_SETTINGS = {
     reviewer_inactivity_timeout_min: 30,
     reviewer_otp_enabled: true,
     case_delete_enabled: true,
+    reopen_enabled: true,
   },
   credit_card: {
     maker_checker_enabled: true,
@@ -39,6 +40,7 @@ const DOMAIN_SETTINGS = {
     reviewer_inactivity_timeout_min: 30,
     reviewer_otp_enabled: true,
     case_delete_enabled: true,
+    reopen_enabled: true,
   },
   application: {
     maker_checker_enabled: false,
@@ -49,6 +51,7 @@ const DOMAIN_SETTINGS = {
     reviewer_inactivity_timeout_min: 20,
     reviewer_otp_enabled: true,
     case_delete_enabled: true,
+    reopen_enabled: true,
   },
   account_takeover: {
     maker_checker_enabled: true,
@@ -59,6 +62,7 @@ const DOMAIN_SETTINGS = {
     reviewer_inactivity_timeout_min: 30,
     reviewer_otp_enabled: true,
     case_delete_enabled: true,
+    reopen_enabled: true,
   },
   internal: {
     maker_checker_enabled: true,
@@ -69,6 +73,7 @@ const DOMAIN_SETTINGS = {
     reviewer_inactivity_timeout_min: 15,
     reviewer_otp_enabled: true,
     case_delete_enabled: true,
+    reopen_enabled: true,
   },
 };
 
@@ -210,6 +215,7 @@ const Icons = {
   Sun: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
   LogOut: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
   Trash: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  Unlock: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -282,7 +288,7 @@ const Toggle = ({ checked, onChange, disabled }) => (
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function SCMSettings({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, notifications = [], onMarkAllRead, onMarkRead } = {}) {
+export default function SCMSettings({ onNavigate, currentRole = "analyst", onRoleChange, selectedDomain = "payment", onDomainChange, notifications = [], onMarkAllRead, onMarkRead, fraudDomains: fraudDomainsProp, onDomainsChange } = {}) {
 
   // Sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -305,6 +311,15 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
   const [expandedCategories, setExpandedCategories] = useState(PERMISSION_CATEGORIES.map(c => c.key));
   const [newCloseReason, setNewCloseReason] = useState("");
 
+  // Domain management state
+  const [domains, setDomains] = useState(fraudDomainsProp || FRAUD_DOMAINS);
+  const [newDomainLabel, setNewDomainLabel] = useState("");
+
+  // Sync when prop changes
+  useEffect(() => {
+    if (fraudDomainsProp && fraudDomainsProp.length > 0) setDomains(fraudDomainsProp);
+  }, [fraudDomainsProp]);
+
   // Update settings when domain changes — try API first, fall back to mock
   useEffect(() => {
     setHasChanges(false);
@@ -319,6 +334,7 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
         reviewer_inactivity_timeout_min: data.reviewer_inactivity_timeout_min,
         reviewer_otp_enabled: !!data.reviewer_otp_enabled,
         case_delete_enabled: data.case_delete_enabled !== undefined ? !!data.case_delete_enabled : true,
+        reopen_enabled: data.reopen_enabled !== undefined ? !!data.reopen_enabled : true,
       });
     }).catch(() => {
       setSettings({ ...DOMAIN_SETTINGS[selectedDomain] });
@@ -348,10 +364,49 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
     updateSetting("close_reasons", settings.close_reasons.filter(r => r !== reason));
   };
 
+  const addDomain = () => {
+    const trimmed = newDomainLabel.trim();
+    if (!trimmed) { showToast("warning", "Domain adı boş olamaz"); return; }
+    if (trimmed.length < 2) { showToast("warning", "Domain adı en az 2 karakter olmalıdır"); return; }
+    if (trimmed.length > 60) { showToast("warning", "Domain adı en fazla 60 karakter olabilir"); return; }
+    // Generate safe ASCII id
+    const id = trimmed.toLowerCase()
+      .replace(/ç/g,"c").replace(/ğ/g,"g").replace(/ı/g,"i").replace(/ö/g,"o").replace(/ş/g,"s").replace(/ü/g,"u")
+      .replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");
+    if (!id) { showToast("error", "Geçerli bir domain ID üretilemedi. Lütfen Latin harf veya rakam içeren bir ad girin."); return; }
+    if (domains.find(d => d.id === id)) { showToast("error", "Bu isimde bir domain zaten mevcut."); return; }
+    settingsApi.createDomain({ id, label: trimmed, icon: "🔍", created_by: USERS[currentRole]?.name || "System" })
+      .then(newDom => {
+        const updated = [...domains, newDom];
+        setDomains(updated);
+        if (onDomainsChange) onDomainsChange(updated);
+        setNewDomainLabel("");
+        showToast("success", `"${trimmed}" domaini eklendi`);
+      }).catch(err => showToast("error", err.message || "Domain eklenemedi"));
+  };
+
+  const removeDomain = (id) => {
+    if (domains.length <= 1) { showToast("error", "En az bir domain bulunmalıdır."); return; }
+    setConfirmModal({
+      title: "Domain Sil",
+      message: `"${domains.find(d => d.id === id)?.label}" domainini kaldırmak istediğinize emin misiniz? Bu domain için ayarlar korunur, ancak yeni vakalar oluşturulamaz.`,
+      onConfirm: () => {
+        setConfirmModal(null);
+        settingsApi.deleteDomain(id)
+          .then(() => {
+            const updated = domains.filter(d => d.id !== id);
+            setDomains(updated);
+            if (onDomainsChange) onDomainsChange(updated);
+            showToast("success", "Domain kaldırıldı");
+          }).catch(err => showToast("error", err.message || "Domain kaldırılamadı"));
+      },
+    });
+  };
+
   const handleSave = () => {
     setConfirmModal({
       title: "Ayarları Kaydet",
-      message: `"${FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label}" domaini için yapılan değişiklikleri kaydetmek istediğinize emin misiniz?`,
+      message: `"${domains.find(d => d.id === selectedDomain)?.label}" domaini için yapılan değişiklikleri kaydetmek istediğinize emin misiniz?`,
       onConfirm: () => {
         setHasChanges(false);
         setConfirmModal(null);
@@ -373,6 +428,7 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
         reviewer_inactivity_timeout_min: data.reviewer_inactivity_timeout_min,
         reviewer_otp_enabled: !!data.reviewer_otp_enabled,
         case_delete_enabled: data.case_delete_enabled !== undefined ? !!data.case_delete_enabled : true,
+        reopen_enabled: data.reopen_enabled !== undefined ? !!data.reopen_enabled : true,
       });
     }).catch(() => {
       setSettings({ ...DOMAIN_SETTINGS[selectedDomain] });
@@ -449,12 +505,13 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
 
   const settingsSections = [
     { key: "system", label: "Sistem Ayarları", icon: <Icons.Shield /> },
+    { key: "domains_mgmt", label: "Domain Yönetimi", icon: <Icons.Globe /> },
     { key: "notification", label: "Bildirim & E-posta", icon: <Icons.Mail /> },
     { key: "roles", label: "Rol Yönetimi", icon: <Icons.Key /> },
     { key: "audit", label: "Değişiklik Geçmişi", icon: <Icons.History /> },
   ];
 
-  const domainLabel = FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.label || "";
+  const domainLabel = domains.find(d => d.id === selectedDomain)?.label || "";
 
 
   const filteredAudit = CONFIG_AUDIT_LOG.filter(log => {
@@ -489,6 +546,7 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
         notifications={notifications}
         onMarkAllRead={onMarkAllRead}
         onMarkRead={onMarkRead}
+        fraudDomains={domains}
       />
 
       {/* ═══ MAIN CONTENT ═══ */}
@@ -557,7 +615,7 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
             <div style={{ marginTop: 20, padding: 14, background: "#F8FAFC", borderRadius: 10, border: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Aktif Domain</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 20 }}>{FRAUD_DOMAINS.find(d => d.id === selectedDomain)?.icon}</span>
+                <span style={{ fontSize: 20 }}>{domains.find(d => d.id === selectedDomain)?.icon}</span>
                 <div>
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: C.text }}>{domainLabel}</div>
                   <div style={{ fontSize: 10.5, color: C.textSecondary }}>Domain bazlı ayarlar</div>
@@ -618,6 +676,30 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
                       <Icons.Info />
                       <div style={{ fontSize: 11.5, color: "#92400E", lineHeight: 1.5 }}>
                         <strong>Not:</strong> Vaka silme işlemi aktif olduğunda bile her zaman Maker-Checker sürecine tabidir.
+                      </div>
+                    </div>
+                  )}
+                </SettingCard>
+
+                {/* Reopen Case Toggle */}
+                <SettingCard
+                  icon={<Icons.Unlock />}
+                  title="Kapatılmış Vaka Yeniden Açma"
+                  description="Açıldığında kullanıcılar kapatılmış vakaları yeniden açma talebinde bulunabilir. Yeniden açma işlemi her zaman Maker-Checker onayına tabidir. Kapatıldığında hiçbir kullanıcı kapatılmış vaka açamaz."
+                  badge={settings.reopen_enabled ? { label: "Aktif", color: C.success } : { label: "Pasif", color: C.textSecondary }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ fontSize: 12.5, color: C.textSecondary }}>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, background: "#F1F5F9", padding: "2px 8px", borderRadius: 4, marginRight: 8 }}>reopen_enabled</span>
+                      Varsayılan: <strong>Açık</strong>
+                    </div>
+                    <Toggle checked={settings.reopen_enabled} onChange={v => updateSetting("reopen_enabled", v)} />
+                  </div>
+                  {settings.reopen_enabled && (
+                    <div style={{ marginTop: 12, padding: "10px 14px", background: "#FFFBEB", borderRadius: 8, border: "1px solid #FDE68A", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <Icons.Info />
+                      <div style={{ fontSize: 11.5, color: "#92400E", lineHeight: 1.5 }}>
+                        <strong>Not:</strong> Yeniden açma işlemi aktif olduğunda bile her zaman Maker-Checker sürecine tabidir. Maker-Checker kapalı olsa dahi bu kural geçerlidir.
                       </div>
                     </div>
                   )}
@@ -737,6 +819,65 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
                       <div style={{ fontSize: 10.5, color: C.textSecondary, marginTop: 4 }}>6 haneli OTP, maskeli e-posta</div>
                     </div>
                   </div>
+                </SettingCard>
+              </div>
+            )}
+
+            {/* DOMAIN MANAGEMENT */}
+            {activeSection === "domains_mgmt" && (
+              <div style={{ animation: "slideUp 0.3s ease" }}>
+                <SectionHeader icon={<Icons.Globe />} title="Domain Yönetimi" subtitle="Sistemde tanımlı fraud domain'lerini yönetin. Eklenen domain'ler tüm sayfalardaki seçim listelerinde görünür." />
+
+                <SettingCard
+                  icon={<Icons.Globe />}
+                  title="Tanımlı Domain'ler"
+                  description="Her domain bağımsız ayar setine, vaka listesine ve raporlara sahiptir. Yeni domain eklendiğinde varsayılan ayarlarla otomatik oluşturulur."
+                >
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                    {domains.map((domain) => (
+                      <div key={domain.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px 8px 14px", borderRadius: 10, background: "#F8FAFC", border: `1px solid ${C.border}`, fontSize: 13, color: C.text, fontWeight: 500 }}>
+                        <span style={{ fontSize: 16, lineHeight: 1 }}>{domain.icon}</span>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 12.5 }}>{domain.label}</div>
+                          <div style={{ fontSize: 10.5, color: C.textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>{domain.id}</div>
+                        </div>
+                        {(currentRole === "super" || currentRole === "admin") && (
+                          <button
+                            onClick={() => removeDomain(domain.id)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex", padding: 2, marginLeft: 4, borderRadius: 4, transition: "color 0.15s" }}
+                            onMouseEnter={e => e.currentTarget.style.color = C.danger}
+                            onMouseLeave={e => e.currentTarget.style.color = "#94A3B8"}
+                            title="Domain'i kaldır"
+                          >
+                            <Icons.X />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {(currentRole === "super" || currentRole === "admin") && (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        value={newDomainLabel}
+                        onChange={e => setNewDomainLabel(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && addDomain()}
+                        placeholder="Yeni domain adı (örn. Mobil Bankacılık Fraud)..."
+                        style={{ ...inputStyle, flex: 1 }}
+                      />
+                      <button
+                        onClick={addDomain}
+                        style={{ ...btnStyle, background: newDomainLabel.trim() ? "#EFF6FF" : "#F8FAFC", color: newDomainLabel.trim() ? C.primary : C.textSecondary, border: `1.5px solid ${newDomainLabel.trim() ? "#BFDBFE" : C.border}`, cursor: newDomainLabel.trim() ? "pointer" : "default", flexShrink: 0 }}
+                      >
+                        <Icons.Plus /> Ekle
+                      </button>
+                    </div>
+                  )}
+                  {!(currentRole === "super" || currentRole === "admin") && (
+                    <div style={{ padding: "10px 14px", background: "#FFFBEB", borderRadius: 8, border: "1px solid #FDE68A", display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "#92400E" }}>
+                      <Icons.Info />
+                      Domain eklemek/kaldırmak için Admin veya Super Admin yetkisi gereklidir.
+                    </div>
+                  )}
                 </SettingCard>
               </div>
             )}
