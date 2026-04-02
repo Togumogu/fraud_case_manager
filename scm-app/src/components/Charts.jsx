@@ -7,6 +7,7 @@ import {
   AreaChart, Area,
   BarChart, Bar,
   PieChart, Pie, Cell,
+  ComposedChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 
@@ -199,5 +200,117 @@ function DomainHeatmap({ data, loading }) {
   );
 }
 
-const Charts = { TrendLine, SeverityDonut, DomainHeatmap };
+// ── 4. AmountTrends — Composed bar + line for fraud amounts ──
+function AmountTrends({ data, loading }) {
+  if (loading) return <Skeleton height={240} />;
+  if (!data) return null;
+
+  const fmtK = (v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v;
+
+  const chartData = (data.months || []).map((m, i) => ({
+    month: m,
+    'Toplam Tutar': data.totalAmounts[i] ?? 0,
+    'Ort. Tutar': data.avgAmounts[i] ?? 0,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <ComposedChart data={chartData} margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #E2E8F0)" vertical={false} />
+        <XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false} />
+        <YAxis tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={fmtK} />
+        <Tooltip contentStyle={tooltipStyle} labelStyle={labelStyle} formatter={(v) => [`₺${Number(v).toLocaleString('tr-TR')}`, '']} />
+        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, fontFamily: 'DM Sans, sans-serif', paddingTop: 8 }} />
+        <Bar dataKey="Toplam Tutar" fill="#1E40AF" radius={[4, 4, 0, 0]} barSize={28} fillOpacity={0.85} />
+        <Line type="monotone" dataKey="Ort. Tutar" stroke="#F59E0B" strokeWidth={2.5} dot={{ r: 3, fill: '#F59E0B' }} activeDot={{ r: 5 }} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── 5. RiskScoreDistribution — Color-graded vertical bar chart ──
+const RISK_COLORS = ['#059669', '#3B82F6', '#F59E0B', '#F97316', '#DC2626'];
+
+function RiskScoreDistribution({ data, loading }) {
+  if (loading) return <Skeleton height={220} />;
+  if (!data || data.length === 0) return null;
+
+  const chartData = data.map((d, i) => ({ name: d.bucket, count: d.count, fill: RISK_COLORS[i] || '#94A3B8' }));
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={chartData} margin={{ top: 8, right: 16, left: -16, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #E2E8F0)" vertical={false} />
+        <XAxis dataKey="name" tick={tickStyle} axisLine={false} tickLine={false} />
+        <YAxis tick={tickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
+        <Tooltip contentStyle={tooltipStyle} labelStyle={labelStyle} formatter={(v) => [v, 'İşlem']} />
+        <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+          {chartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── 6. AnalystPerformance — Horizontal stacked bar per analyst ──
+function AnalystPerformance({ data, loading }) {
+  if (loading) return <Skeleton height={240} />;
+  if (!data || data.length === 0) return (
+    <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary, #64748B)', fontSize: 13 }}>
+      Veri bulunamadı
+    </div>
+  );
+
+  const chartData = data.map(d => ({
+    name: (d.analyst || '').split(' ')[0],
+    fullName: d.analyst,
+    'Açık': d.openCases,
+    'Kapalı': d.closedCases,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(180, data.length * 44)}>
+      <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 24, left: 70, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #E2E8F0)" horizontal={false} />
+        <XAxis type="number" tick={tickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
+        <YAxis type="category" dataKey="name" tick={tickStyle} axisLine={false} tickLine={false} width={68} />
+        <Tooltip contentStyle={tooltipStyle} labelStyle={labelStyle} formatter={(v, name) => [v, name === 'Açık' ? 'Açık Vaka' : 'Kapalı Vaka']} />
+        <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 12, fontFamily: 'DM Sans, sans-serif' }} />
+        <Bar dataKey="Açık" stackId="a" fill="#F59E0B" radius={[0, 0, 0, 0]} />
+        <Bar dataKey="Kapalı" stackId="a" fill="#059669" radius={[0, 4, 4, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── 7. FraudFunnel — Horizontal bar chart pipeline ────────────
+const FUNNEL_COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#059669'];
+
+function FraudFunnel({ data, loading }) {
+  if (loading) return <Skeleton height={200} />;
+  if (!data) return null;
+
+  const chartData = [
+    { name: 'Toplam İşlem', value: data.totalTransactions },
+    { name: 'İşaretli', value: data.markedTransactions },
+    { name: 'Vakaya Atanmış', value: data.caseAssigned },
+    { name: 'Kapatılmış', value: data.closedCases },
+  ];
+
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 40, left: 90, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #E2E8F0)" horizontal={false} />
+        <XAxis type="number" tick={tickStyle} axisLine={false} tickLine={false} />
+        <YAxis type="category" dataKey="name" tick={tickStyle} axisLine={false} tickLine={false} width={88} />
+        <Tooltip contentStyle={tooltipStyle} labelStyle={labelStyle} formatter={(v) => [v, 'Adet']} />
+        <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+          {chartData.map((_, i) => <Cell key={i} fill={FUNNEL_COLORS[i]} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+const Charts = { TrendLine, SeverityDonut, DomainHeatmap, AmountTrends, RiskScoreDistribution, AnalystPerformance, FraudFunnel };
 export default Charts;

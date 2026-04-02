@@ -217,7 +217,11 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
   // Fraud distribution
   const [bankShareVal, setBankShareVal] = useState(baseCase.bankShare ?? 0);
   const [customerShareVal, setCustomerShareVal] = useState(baseCase.customerShare ?? 0);
-  const remainder = Math.max(0, caseData.totalAmount - bankShareVal - customerShareVal);
+  const rawRemainder = (caseData.totalAmount || 0) - bankShareVal - customerShareVal;
+  const remainder = Math.max(0, rawRemainder);
+  const isOverage = rawRemainder < 0;
+  const isExactMatch = rawRemainder === 0 && (caseData.totalAmount || 0) > 0;
+  const isPartial = rawRemainder > 0;
   const bankPct = caseData.totalAmount > 0 ? (bankShareVal / caseData.totalAmount) * 100 : 0;
   const custPct = caseData.totalAmount > 0 ? (customerShareVal / caseData.totalAmount) * 100 : 0;
   const remPct = 100 - bankPct - custPct;
@@ -484,9 +488,7 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
     showToast("success", "Vaka güncellendi.");
   };
   const handleSaveFraud = () => {
-    const total = caseData.totalAmount || 0;
     if (bankShareVal < 0 || customerShareVal < 0) { showToast("warning", "Paylar negatif olamaz"); return; }
-    if (bankShareVal + customerShareVal > total) { showToast("warning", "Banka ve müşteri payı toplamı fraud tutarını aşamaz"); return; }
     setCaseData(d => ({ ...d, bankShare: bankShareVal, customerShare: customerShareVal }));
     if (baseCase.id) {
       casesApi.update(baseCase.id, { bank_share: bankShareVal, customer_share: customerShareVal, update_user: user.name })
@@ -644,24 +646,115 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
               </div>
             </div>
 
-            {/* Fraud Distribution */}
-            <div style={{ marginTop: 20, padding: "16px 20px", background: "#FAFBFD", borderRadius: 10, border: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Fraud Tutarı Dağılımı</div>
-              <div style={{ height: 12, borderRadius: 6, display: "flex", overflow: "hidden", marginBottom: 12, background: "#E2E8F0" }}>
-                {bankPct > 0 && <div style={{ width: `${bankPct}%`, background: "#1E40AF", transition: "width .3s" }} />}
-                {custPct > 0 && <div style={{ width: `${custPct}%`, background: "#F59E0B", transition: "width .3s" }} />}
-                {remPct > 0.5 && <div style={{ width: `${remPct}%`, background: "#CBD5E1", transition: "width .3s" }} />}
+            {/* Fraud Distribution — Enhanced with visual-only validation */}
+            <div style={{
+              marginTop: 20,
+              padding: "20px 24px",
+              background: "#FAFBFD",
+              borderRadius: 12,
+              border: `1.5px solid ${isOverage ? '#DC2626' : isExactMatch ? '#059669' : C.border}`,
+              boxShadow: isOverage ? '0 0 0 3px rgba(220,38,38,0.08)' : isExactMatch ? '0 0 0 3px rgba(5,150,105,0.08)' : '0 1px 3px rgba(0,0,0,0.06)',
+              transition: 'border-color 0.25s, box-shadow 0.25s',
+            }}>
+              {/* Header: title + status badge */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Fraud Tutarı Dağılımı</div>
+                <div style={{
+                  padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  background: isOverage ? '#FEE2E2' : isExactMatch ? '#D1FAE5' : '#FEF3C7',
+                  color: isOverage ? '#991B1B' : isExactMatch ? '#065F46' : '#92400E',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  border: `1px solid ${isOverage ? '#FECACA' : isExactMatch ? '#A7F3D0' : '#FDE68A'}`,
+                }}>
+                  {isOverage ? '⚠ Toplam Aşıldı!' : isExactMatch ? '✓ Tam Dağıtım' : 'Kısmi Dağıtım'}
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 20, marginBottom: 14, fontSize: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#1E40AF" }} /><span style={{ color: C.textSecondary }}>Banka Payı</span><span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(bankShareVal, caseData.currency)}</span><span style={{ fontSize: 11, color: "#1E40AF", fontWeight: 600, opacity: 0.7 }}>(%{bankPct.toFixed(1)})</span></div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#F59E0B" }} /><span style={{ color: C.textSecondary }}>Müşteri Payı</span><span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(customerShareVal, caseData.currency)}</span><span style={{ fontSize: 11, color: "#D97706", fontWeight: 600, opacity: 0.7 }}>(%{custPct.toFixed(1)})</span></div>
-                {remainder > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#CBD5E1" }} /><span style={{ color: C.textSecondary }}>Belirlenmemiş</span><span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: C.warning }}>{fmt(remainder, caseData.currency)}</span><span style={{ fontSize: 11, color: C.textSecondary, fontWeight: 600, opacity: 0.7 }}>(%{remPct.toFixed(1)})</span></div>}
+
+              {/* Progress bar */}
+              <div style={{
+                height: 16, borderRadius: 8, display: "flex", overflow: "hidden",
+                marginBottom: 6,
+                background: isOverage ? '#FEE2E2' : '#E2E8F0',
+                transition: 'all 0.3s',
+              }}>
+                {bankPct > 0 && <div style={{ width: `${Math.min(bankPct, 100)}%`, background: "#1E40AF", transition: "width 0.4s cubic-bezier(0.4,0,0.2,1)" }} />}
+                {custPct > 0 && <div style={{ width: `${Math.min(custPct, Math.max(0, 100 - Math.min(bankPct, 100)))}%`, background: "#F59E0B", transition: "width 0.4s cubic-bezier(0.4,0,0.2,1)" }} />}
+                {isPartial && remPct > 0.5 && <div style={{ width: `${remPct}%`, background: "#CBD5E1", transition: "width 0.4s cubic-bezier(0.4,0,0.2,1)" }} />}
               </div>
+
+              {/* Sum vs Total comparison line */}
+              <div style={{ fontSize: 11.5, fontFamily: "'JetBrains Mono',monospace", marginBottom: 14, fontWeight: 600, color: isOverage ? '#DC2626' : isExactMatch ? '#059669' : C.textSecondary }}>
+                Dağıtılan: {fmt(bankShareVal + customerShareVal, caseData.currency)} / {fmt(caseData.totalAmount, caseData.currency)}
+                {isOverage && <span style={{ marginLeft: 8, fontSize: 11, background: '#FEE2E2', padding: '1px 6px', borderRadius: 4 }}>+{fmt(Math.abs(rawRemainder), caseData.currency)} aşım</span>}
+              </div>
+
+              {/* Legend */}
+              <div style={{ display: "flex", gap: 20, marginBottom: 16, fontSize: 12, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: "#1E40AF" }} />
+                  <span style={{ color: C.textSecondary }}>Banka Payı</span>
+                  <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(bankShareVal, caseData.currency)}</span>
+                  <span style={{ fontSize: 11, color: "#1E40AF", fontWeight: 600, opacity: 0.7 }}>(%{bankPct.toFixed(1)})</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: "#F59E0B" }} />
+                  <span style={{ color: C.textSecondary }}>Müşteri Payı</span>
+                  <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>{fmt(customerShareVal, caseData.currency)}</span>
+                  <span style={{ fontSize: 11, color: "#D97706", fontWeight: 600, opacity: 0.7 }}>(%{custPct.toFixed(1)})</span>
+                </div>
+                {isPartial && remainder > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 2, background: "#CBD5E1" }} />
+                    <span style={{ color: C.textSecondary }}>Belirlenmemiş</span>
+                    <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: C.warning }}>{fmt(remainder, caseData.currency)}</span>
+                    <span style={{ fontSize: 11, color: C.textSecondary, fontWeight: 600, opacity: 0.7 }}>(%{remPct.toFixed(1)})</span>
+                  </div>
+                )}
+                {isOverage && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 2, background: "#DC2626" }} />
+                    <span style={{ color: '#DC2626', fontWeight: 600 }}>Aşım</span>
+                    <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: '#DC2626' }}>{fmt(Math.abs(rawRemainder), caseData.currency)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Inputs + Total + Save */}
               <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 160 }}><label style={{ fontSize: 11, color: "#1E40AF", fontWeight: 600, display: "block", marginBottom: 4 }}>Banka Payı</label><input type="number" min="0" max={caseData.totalAmount - customerShareVal} value={bankShareVal} onChange={e => setBankShareVal(Math.max(0, Math.min(parseInt(e.target.value)||0, caseData.totalAmount - customerShareVal)))} disabled={isReadOnly} style={{ width: "100%", padding: "8px 12px", border: "1px solid #BFDBFE", borderRadius: 8, fontSize: 13, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, borderLeft: "3px solid #1E40AF", ...(isReadOnly ? { opacity: 0.6, cursor: "not-allowed" } : {}) }} /></div>
-                <div style={{ flex: 1, minWidth: 160 }}><label style={{ fontSize: 11, color: "#D97706", fontWeight: 600, display: "block", marginBottom: 4 }}>Müşteri Payı</label><input type="number" min="0" max={caseData.totalAmount - bankShareVal} value={customerShareVal} onChange={e => setCustomerShareVal(Math.max(0, Math.min(parseInt(e.target.value)||0, caseData.totalAmount - bankShareVal)))} disabled={isReadOnly} style={{ width: "100%", padding: "8px 12px", border: "1px solid #FDE68A", borderRadius: 8, fontSize: 13, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, borderLeft: "3px solid #F59E0B", ...(isReadOnly ? { opacity: 0.6, cursor: "not-allowed" } : {}) }} /></div>
-                <div style={{ flex: 1, minWidth: 160 }}><label style={{ fontSize: 11, color: C.textSecondary, display: "block", marginBottom: 4 }}>Toplam</label><div style={{ padding: "8px 12px", background: "#E2E8F0", borderRadius: 8, fontSize: 13, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(caseData.totalAmount, caseData.currency)}</div></div>
-                {!isReadOnly && <button onClick={handleSaveFraud} style={{ ...ss.btn, background: C.primary, color: "#fff" }}>Kaydet</button>}
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <label style={{ fontSize: 11, color: "#1E40AF", fontWeight: 600, display: "block", marginBottom: 4 }}>Banka Payı</label>
+                  <input
+                    type="number" min="0" value={bankShareVal}
+                    onChange={e => setBankShareVal(Math.max(0, parseInt(e.target.value) || 0))}
+                    disabled={isReadOnly}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, outline: "none", transition: "border-color 0.2s",
+                      border: isOverage ? "1.5px solid #DC2626" : "1px solid #BFDBFE",
+                      borderLeft: `3px solid ${isOverage ? '#DC2626' : '#1E40AF'}`,
+                      background: isOverage ? '#FEF2F2' : '#fff',
+                      ...(isReadOnly ? { opacity: 0.6, cursor: "not-allowed" } : {}) }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <label style={{ fontSize: 11, color: "#D97706", fontWeight: 600, display: "block", marginBottom: 4 }}>Müşteri Payı</label>
+                  <input
+                    type="number" min="0" value={customerShareVal}
+                    onChange={e => setCustomerShareVal(Math.max(0, parseInt(e.target.value) || 0))}
+                    disabled={isReadOnly}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, outline: "none", transition: "border-color 0.2s",
+                      border: isOverage ? "1.5px solid #DC2626" : "1px solid #FDE68A",
+                      borderLeft: `3px solid ${isOverage ? '#DC2626' : '#F59E0B'}`,
+                      background: isOverage ? '#FEF2F2' : '#fff',
+                      ...(isReadOnly ? { opacity: 0.6, cursor: "not-allowed" } : {}) }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <label style={{ fontSize: 11, color: C.textSecondary, display: "block", marginBottom: 4 }}>Toplam</label>
+                  <div style={{ padding: "8px 12px", background: "#E2E8F0", borderRadius: 8, fontSize: 13, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(caseData.totalAmount, caseData.currency)}</div>
+                </div>
+                {!isReadOnly && (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+                    {isOverage && <span style={{ fontSize: 10.5, color: '#DC2626', fontWeight: 600 }}>⚠ Toplam tutar aşılıyor</span>}
+                    <button onClick={handleSaveFraud} style={{ ...ss.btn, background: C.primary, color: "#fff" }}>Kaydet</button>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -211,4 +211,100 @@ router.get('/domain-heatmap', (req, res) => {
   res.json(result);
 });
 
+router.get('/amount-trends', (req, res) => {
+  const db = getDb();
+  const { domain } = req.query;
+  const months = Math.min(24, Math.max(1, parseInt(req.query.months) || 6));
+  const slots = lastNMonths(months);
+
+  const domainFilter = domain ? ' AND domain_id = ?' : '';
+  const dp = domain ? [domain] : [];
+
+  const rows = db.prepare(`
+    SELECT SUBSTR(create_date,7,4)||'-'||SUBSTR(create_date,4,2) as ym,
+           ROUND(SUM(total_amount), 2) as totalAmount,
+           ROUND(AVG(total_amount), 2) as avgAmount,
+           COUNT(*) as caseCount
+    FROM cases WHERE is_deleted = 0${domainFilter}
+    GROUP BY ym
+  `).all(...dp);
+
+  const amountMap = Object.fromEntries(rows.map(r => [r.ym, { total: r.totalAmount, avg: r.avgAmount, count: r.caseCount }]));
+
+  res.json({
+    months: slots.map(s => MONTH_LABELS[s.slice(5)] + ' ' + s.slice(0, 4)),
+    totalAmounts: slots.map(s => amountMap[s]?.total || 0),
+    avgAmounts: slots.map(s => amountMap[s]?.avg || 0),
+    caseCounts: slots.map(s => amountMap[s]?.count || 0),
+  });
+});
+
+router.get('/risk-score-distribution', (req, res) => {
+  const db = getDb();
+  const { domain } = req.query;
+  const fdmSource = domain ? DOMAIN_TO_SOURCE[domain] : null;
+  const txnFilter = fdmSource ? ' AND source = ?' : '';
+  const tp = fdmSource ? [fdmSource] : [];
+
+  const rows = db.prepare(`
+    SELECT
+      CASE
+        WHEN score BETWEEN 0 AND 20 THEN '0-20'
+        WHEN score BETWEEN 21 AND 40 THEN '21-40'
+        WHEN score BETWEEN 41 AND 60 THEN '41-60'
+        WHEN score BETWEEN 61 AND 80 THEN '61-80'
+        WHEN score BETWEEN 81 AND 100 THEN '81-100'
+        ELSE 'Diğer'
+      END as bucket,
+      COUNT(*) as cnt
+    FROM fdm.fdm_transactions WHERE score IS NOT NULL${txnFilter}
+    GROUP BY bucket
+    ORDER BY bucket
+  `).all(...tp);
+
+  const BUCKETS = ['0-20', '21-40', '41-60', '61-80', '81-100'];
+  const countMap = Object.fromEntries(rows.filter(r => BUCKETS.includes(r.bucket)).map(r => [r.bucket, r.cnt]));
+  res.json(BUCKETS.map(b => ({ bucket: b, count: countMap[b] || 0 })));
+});
+
+router.get('/analyst-performance', (req, res) => {
+  const db = getDb();
+  const { domain } = req.query;
+  const domainFilter = domain ? ' AND domain_id = ?' : '';
+  const dp = domain ? [domain] : [];
+
+  const rows = db.prepare(`
+    SELECT owner as analyst,
+           COUNT(*) as totalCases,
+           SUM(CASE WHEN status = 'Open' THEN 1 ELSE 0 END) as openCases,
+           SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as closedCases,
+           ROUND(SUM(total_amount), 2) as totalAmount
+    FROM cases
+    WHERE is_deleted = 0 AND owner IS NOT NULL AND owner != ''${domainFilter}
+    GROUP BY owner
+    ORDER BY totalCases DESC
+    LIMIT 10
+  `).all(...dp);
+
+  res.json(rows);
+});
+
+router.get('/fraud-funnel', (req, res) => {
+  const db = getDb();
+  const { domain } = req.query;
+  const domainFilter = domain ? ' AND domain_id = ?' : '';
+  const dp = domain ? [domain] : [];
+
+  const fdmSource = domain ? DOMAIN_TO_SOURCE[domain] : null;
+  const txnFilter = fdmSource ? ' AND source = ?' : '';
+  const tp = fdmSource ? [fdmSource] : [];
+
+  const totalTransactions = db.prepare(`SELECT COUNT(*) as cnt FROM fdm.fdm_transactions WHERE 1=1${txnFilter}`).get(...tp).cnt;
+  const markedTransactions = db.prepare(`SELECT COUNT(*) as cnt FROM fdm.fdm_transactions WHERE mark_status = 'Marked'${txnFilter}`).get(...tp).cnt;
+  const caseAssigned = db.prepare(`SELECT COUNT(*) as cnt FROM fdm.fdm_transactions WHERE mark_status = 'Case Assigned'${txnFilter}`).get(...tp).cnt;
+  const closedCases = db.prepare(`SELECT COUNT(*) as cnt FROM cases WHERE is_deleted = 0 AND status = 'Closed'${domainFilter}`).get(...dp).cnt;
+
+  res.json({ totalTransactions, markedTransactions, caseAssigned, closedCases });
+});
+
 module.exports = router;

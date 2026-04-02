@@ -128,6 +128,10 @@ export const dashboard = {
   trends: (params = {}) => get(`/dashboard/trends${qs(params)}`),
   severityDistribution: (params = {}) => get(`/dashboard/severity-distribution${qs(params)}`),
   domainHeatmap: () => get('/dashboard/domain-heatmap'),
+  amountTrends: (params = {}) => get(`/dashboard/amount-trends${qs(params)}`),
+  riskScoreDistribution: (params = {}) => get(`/dashboard/risk-score-distribution${qs(params)}`),
+  analystPerformance: (params = {}) => get(`/dashboard/analyst-performance${qs(params)}`),
+  fraudFunnel: (params = {}) => get(`/dashboard/fraud-funnel${qs(params)}`),
 };
 
 export default { fdm, cases, transactions, comments, attachments, history, reviews, relations, users, settings, approvals, dashboard };

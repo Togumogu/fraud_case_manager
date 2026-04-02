@@ -83,6 +83,35 @@ const MOCK_HEATMAP = [
   { domain_id: "internal", label: "Internal Fraud", color: "#6366F1", totalCases: 4, openCases: 2, closedCases: 2, criticalCount: 1, highCount: 1, totalAmount: 55000, txnCount: 28, avgScore: 65 },
 ];
 
+const MOCK_AMOUNT_TRENDS = {
+  months: ["Eki 2025", "Kas 2025", "Ara 2025", "Oca 2026", "Şub 2026", "Mar 2026"],
+  totalAmounts: [245000, 312000, 198000, 425000, 380000, 290000],
+  avgAmounts: [12250, 13565, 9900, 17708, 15833, 12083],
+  caseCounts: [20, 23, 20, 24, 24, 24],
+};
+
+const MOCK_RISK_SCORES = [
+  { bucket: "0-20", count: 45 },
+  { bucket: "21-40", count: 112 },
+  { bucket: "41-60", count: 195 },
+  { bucket: "61-80", count: 148 },
+  { bucket: "81-100", count: 63 },
+];
+
+const MOCK_ANALYST_PERF = [
+  { analyst: "Elif Yılmaz", totalCases: 28, openCases: 8, closedCases: 20, totalAmount: 345000 },
+  { analyst: "Mehmet Öz", totalCases: 22, openCases: 6, closedCases: 16, totalAmount: 280000 },
+  { analyst: "Ayşe Tan", totalCases: 18, openCases: 5, closedCases: 13, totalAmount: 215000 },
+  { analyst: "Can Yıldız", totalCases: 15, openCases: 4, closedCases: 11, totalAmount: 185000 },
+];
+
+const MOCK_FUNNEL = {
+  totalTransactions: 463,
+  markedTransactions: 37,
+  caseAssigned: 120,
+  closedCases: 152,
+};
+
 // --- Icons as SVG components ---
 const Icons = {
   Dashboard: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
@@ -176,6 +205,11 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
   const [severityData, setSeverityData] = useState(null);
   const [heatmapData, setHeatmapData] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [amountTrendsData, setAmountTrendsData] = useState(null);
+  const [riskScoreData, setRiskScoreData] = useState(null);
+  const [analystPerfData, setAnalystPerfData] = useState(null);
+  const [funnelData, setFunnelData] = useState(null);
+  const [advancedAnalyticsLoading, setAdvancedAnalyticsLoading] = useState(true);
 
   const user = USERS[currentRole];
   const isManager = currentRole === "manager" || currentRole === "admin";
@@ -185,6 +219,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
     setKpiLoading(true);
     setPanelsLoading(true);
     setAnalyticsLoading(true);
+    setAdvancedAnalyticsLoading(true);
     // Try to load from API; fall back to mock constants on error
     Promise.all([
       dashboardApi.kpis({ domain: selectedDomain }),
@@ -262,6 +297,28 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
       setSeverityData(MOCK_SEVERITY);
       setHeatmapData(MOCK_HEATMAP);
       setAnalyticsLoading(false);
+    });
+
+    // Advanced analytics — separate fetch, non-blocking
+    Promise.all([
+      dashboardApi.amountTrends({ domain: selectedDomain, months: 6 }),
+      dashboardApi.riskScoreDistribution({ domain: selectedDomain }),
+      dashboardApi.analystPerformance({ domain: selectedDomain }),
+      dashboardApi.fraudFunnel({ domain: selectedDomain }),
+    ]).then(([amounts, risk, perf, funnel]) => {
+      if (cancelled) return;
+      setAmountTrendsData(amounts);
+      setRiskScoreData(risk);
+      setAnalystPerfData(perf);
+      setFunnelData(funnel);
+      setAdvancedAnalyticsLoading(false);
+    }).catch(() => {
+      if (cancelled) return;
+      setAmountTrendsData(MOCK_AMOUNT_TRENDS);
+      setRiskScoreData(MOCK_RISK_SCORES);
+      setAnalystPerfData(MOCK_ANALYST_PERF);
+      setFunnelData(MOCK_FUNNEL);
+      setAdvancedAnalyticsLoading(false);
     });
 
     return () => { cancelled = true; };
@@ -509,8 +566,8 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
           </div>
 
           {/* ── Analytics Section ─────────────────────────────── */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ marginBottom: 24, background: "#fff", borderRadius: 16, border: `1px solid ${COLORS.border}`, padding: "20px 24px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${COLORS.border}` }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: COLORS.text }}>Analitik</h2>
                 <p style={{ margin: 0, fontSize: 11.5, color: COLORS.textSecondary }}>Son 6 ay · {(fraudDomains || FRAUD_DOMAINS).find(d => d.id === selectedDomain)?.label || selectedDomain}</p>
@@ -519,12 +576,12 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
 
             {/* Row A: Trend + Severity (all roles) */}
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16 }}>
-              <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, padding: "18px 22px" }}>
+              <div style={{ background: "#F8FAFC", borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: "18px 22px" }}>
                 <h3 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Vaka & İşlem Trendi</h3>
                 <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>Aylık açılan/kapatılan vaka ve işlem hacmi</p>
                 <Charts.TrendLine data={trendsData} loading={analyticsLoading} />
               </div>
-              <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, padding: "18px 22px" }}>
+              <div style={{ background: "#F8FAFC", borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: "18px 22px" }}>
                 <h3 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Önem Dağılımı</h3>
                 <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>Açık vakalar</p>
                 <Charts.SeverityDonut data={severityData} loading={analyticsLoading} />
@@ -533,12 +590,29 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
 
             {/* Row B: Domain Heatmap (manager, admin, super) */}
             {(currentRole === "manager" || currentRole === "admin" || currentRole === "super") && (
-              <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, padding: "18px 22px", marginBottom: 16 }}>
+              <div style={{ background: "#F8FAFC", borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: "18px 22px", marginBottom: 16 }}>
                 <h3 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Domain Karşılaştırması</h3>
                 <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>Tüm domainlerde açık / kapalı vaka dağılımı</p>
                 <Charts.DomainHeatmap data={heatmapData} loading={analyticsLoading} />
               </div>
             )}
+
+            {/* Divider */}
+            <div style={{ borderTop: `1px solid ${COLORS.border}`, margin: "4px 0 20px" }} />
+
+            {/* Row C: Amount Trends + Risk Score (all roles) */}
+            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16 }}>
+              <div style={{ background: "#F8FAFC", borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: "18px 22px" }}>
+                <h3 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Fraud Tutar Trendi</h3>
+                <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>Aylık toplam ve ortalama fraud tutarı</p>
+                <Charts.AmountTrends data={amountTrendsData} loading={advancedAnalyticsLoading} />
+              </div>
+              <div style={{ background: "#F8FAFC", borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: "18px 22px" }}>
+                <h3 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Risk Skoru Dağılımı</h3>
+                <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>SAS SFD risk skorlarının dağılımı</p>
+                <Charts.RiskScoreDistribution data={riskScoreData} loading={advancedAnalyticsLoading} />
+              </div>
+            </div>
 
           </div>
 
