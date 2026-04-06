@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 import Modal from "../components/Modal";
+import FilterBar from "../components/FilterBar";
 import StatusFlow from "../components/StatusFlow";
 import { comments as commentsApi, attachments as attachmentsApi, history as historyApi, reviews as reviewsApi, relations as relationsApi, transactions as txnsApi, fdm as fdmApi, cases as casesApi, approvals as approvalsApi, settings as settingsApi } from "../api/client";
+import { DOMAIN_TO_SOURCE } from "../data/mockData";
 
 // ═══════════════════════════════════════════════════════════════
 // MOCK DATA
@@ -255,14 +257,19 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
 
   // Relate filters
   const [relateCaseFilter, setRelateCaseFilter] = useState("");
-  const [relateStatusFilter, setRelateStatusFilter] = useState("all");
+  const [relateStatusFilter, setRelateStatusFilter] = useState([]);
+  const [relateSeverityFilter, setRelateSeverityFilter] = useState([]);
+  const [relateFilterOpen, setRelateFilterOpen] = useState(false);
+  const [relateDateFrom, setRelateDateFrom] = useState("");
+  const [relateDateTo, setRelateDateTo] = useState("");
+  const [candidateCases, setCandidateCases] = useState([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
 
   // Txn modal filters
   const [txnSearch, setTxnSearch] = useState("");
-  const [txnMarkFilter, setTxnMarkFilter] = useState("all");
-  const [txnTypeFilter, setTxnTypeFilter] = useState("all");
-  const [txnDateFrom, setTxnDateFrom] = useState("");
-  const [txnDateTo, setTxnDateTo] = useState("");
+  const [debouncedTxnSearch, setDebouncedTxnSearch] = useState("");
+  const [showTxnFilterPanel, setShowTxnFilterPanel] = useState(false);
+  const [txnFilters, setTxnFilters] = useState({ markStatus: "Marked", entityType: "", entityId: "", scoreMin: "", scoreMax: "", dateFrom: "", dateTo: "" });
   const [selectedTxns, setSelectedTxns] = useState(new Set());
   const [availableTxns, setAvailableTxns] = useState([]);
   const [loadingTxns, setLoadingTxns] = useState(false);
@@ -323,19 +330,63 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
     }).catch(() => {}); // non-critical — fallback to mock relations
   }, [baseCase.id]);
 
-  // Fetch FDM transactions when modal opens
+  // Debounce txnSearch → debouncedTxnSearch
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedTxnSearch(txnSearch), 300);
+    return () => clearTimeout(t);
+  }, [txnSearch]);
+
+  // Fetch real cases when relate modal opens
+  useEffect(() => {
+    if (!showRelateModal) return;
+    let cancelled = false;
+    setLoadingCandidates(true);
+    casesApi.list({ limit: 200 }).then(data => {
+      if (cancelled) return;
+      const relatedIds = new Set(relatedCases.map(r => r.id));
+      setCandidateCases(
+        (Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [])
+          .filter(c => c.id !== baseCase.id && !relatedIds.has(c.id))
+          .map(c => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            severity: c.severity,
+            createDate: c.create_date || '',
+            altSeviyeSayisi: 0,
+          }))
+      );
+    }).catch(() => {}).finally(() => { if (!cancelled) setLoadingCandidates(false); });
+    return () => { cancelled = true; };
+  }, [showRelateModal]);
+
+  // Fetch FDM transactions when modal opens or filters change
   useEffect(() => {
     if (!showAddTxnModal) return;
+    let cancelled = false;
     setLoadingTxns(true);
-    fdmApi.transactions({ limit: 100 })
-      .then(res => {
-        const rows = Array.isArray(res) ? res : (res.data || []);
-        const linkedIds = new Set(caseTxns.map(t => t.id));
-        setAvailableTxns(rows.filter(t => !linkedIds.has(t.id)));
-      })
-      .catch(() => setAvailableTxns([]))
-      .finally(() => setLoadingTxns(false));
-  }, [showAddTxnModal]);
+    const markParam = (txnFilters.markStatus && txnFilters.markStatus !== "Tümü") ? txnFilters.markStatus : undefined;
+    fdmApi.transactions({
+      domain: DOMAIN_TO_SOURCE[selectedDomain],
+      limit: 100,
+      search: debouncedTxnSearch || undefined,
+      mark_status: markParam,
+      entity_type: txnFilters.entityType || undefined,
+      entity_key: txnFilters.entityId || undefined,
+      score_min: txnFilters.scoreMin || undefined,
+      score_max: txnFilters.scoreMax || undefined,
+      date_from: txnFilters.dateFrom || undefined,
+      date_to: txnFilters.dateTo || undefined,
+    }).then(res => {
+      if (cancelled) return;
+      const rows = Array.isArray(res) ? res : (res.data || []);
+      const linkedIds = new Set(caseTxns.map(t => t.id));
+      setAvailableTxns(rows.filter(t => !linkedIds.has(t.id)));
+    })
+    .catch(() => { if (!cancelled) setAvailableTxns([]); })
+    .finally(() => { if (!cancelled) setLoadingTxns(false); });
+    return () => { cancelled = true; };
+  }, [showAddTxnModal, selectedDomain, debouncedTxnSearch, txnFilters.markStatus, txnFilters.entityType, txnFilters.entityId, txnFilters.scoreMin, txnFilters.scoreMax, txnFilters.dateFrom, txnFilters.dateTo]);
 
   const user = USERS[currentRole];
   const isOwner = user.id === caseData.ownerId;
@@ -521,14 +572,23 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
     } catch (err) {
       showToast("error", err?.message || "İşlem eklenirken hata oluştu.");
     }
-    setShowAddTxnModal(false); setSelectedTxns(new Set()); setTxnSearch(""); setTxnMarkFilter("all"); setTxnTypeFilter("all"); setTxnDateFrom(""); setTxnDateTo("");
+    setShowAddTxnModal(false); setSelectedTxns(new Set()); setTxnSearch(""); setTxnFilters({ markStatus: "Marked", entityType: "", entityId: "", scoreMin: "", scoreMax: "", dateFrom: "", dateTo: "" }); setShowTxnFilterPanel(false);
   };
 
   const tabs = [{ key: "entities", label: "Varlıklar" },{ key: "comments", label: "Yorumlar", badge: comments.length },{ key: "attachments", label: "Ekler", badge: attachments.length },{ key: "history", label: "Geçmiş" },{ key: "transactions", label: "İşlemler", badge: caseTxns.length },{ key: "related", label: "İlişkili Vakalar", badge: relatedCases.length }];
   const filteredExtEmails = RECENT_EXT_EMAILS.filter(e => !extEmail || e.toLowerCase().includes(extEmail.toLowerCase()));
   const filteredExtNames = RECENT_EXT_NAMES.filter(n => !extName || n.toLowerCase().includes(extName.toLowerCase()));
-  const filteredTxns = availableTxns.filter(t => { const id = t.id || ''; const entityKey = t.entityKey || t.entity_key || t.customer_no || ''; const markStatus = t.markStatus || t.mark_status || ''; const type = t.type || t.source_label || ''; if (txnSearch && !id.toLowerCase().includes(txnSearch.toLowerCase()) && !entityKey.toLowerCase().includes(txnSearch.toLowerCase())) return false; if (txnMarkFilter !== "all" && markStatus !== txnMarkFilter) return false; if (txnTypeFilter !== "all" && type !== txnTypeFilter) return false; return true; });
-  const filteredCases = ALL_CASES_FOR_LINK.filter(c => { if (relateCaseFilter && !String(c.id).includes(relateCaseFilter) && !c.name.toLowerCase().includes(relateCaseFilter.toLowerCase())) return false; if (relateStatusFilter !== "all" && c.status !== relateStatusFilter) return false; return true; });
+  const filteredTxns = availableTxns;
+  const txnActiveFilterCount = Object.entries(txnFilters).filter(([k, v]) => { if (k === "markStatus" && v === "Marked") return false; return v !== ""; }).length;
+  const filteredCases = candidateCases.filter(c => {
+    if (relateCaseFilter && !String(c.id).includes(relateCaseFilter) && !c.name.toLowerCase().includes(relateCaseFilter.toLowerCase())) return false;
+    if (relateStatusFilter.length > 0 && !relateStatusFilter.includes(c.status)) return false;
+    if (relateSeverityFilter.length > 0 && !relateSeverityFilter.includes(c.severity)) return false;
+    if (relateDateFrom && c.createDate && c.createDate < relateDateFrom) return false;
+    if (relateDateTo && c.createDate && c.createDate > relateDateTo) return false;
+    return true;
+  });
+  const relateActiveFilterCount = relateStatusFilter.length + relateSeverityFilter.length + (relateDateFrom ? 1 : 0) + (relateDateTo ? 1 : 0);
 
   const ss = { btn: { display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap", transition: "all .15s", border: "none" } };
 
@@ -924,7 +984,7 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
 
       {/* Relate — only child (Alt Vaka) */}
       {/* Relate Modal — visual tree preview */}
-      {showRelateModal && <Modal title="Vaka İlişkilendir" onClose={() => { setShowRelateModal(false); setRelateError(""); setSelectedRelateCase(null); setRelateMode("alt"); }} width={620}>
+      {showRelateModal && <Modal title="Vaka İlişkilendir" onClose={() => { setShowRelateModal(false); setRelateError(""); setSelectedRelateCase(null); setRelateMode("alt"); setRelateCaseFilter(""); setRelateStatusFilter([]); setRelateSeverityFilter([]); setRelateDateFrom(""); setRelateDateTo(""); setRelateFilterOpen(false); }} width={660}>
         {/* ── Relationship Type Cards ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
           {[
@@ -1001,14 +1061,23 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
         {relateError && <div style={{ marginBottom: 12, padding: "10px 14px", background: "#FEF2F2", borderRadius: 8, border: "1px solid #FECACA", color: C.danger, fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}><I.Alert /> {relateError}</div>}
 
         {/* ── Case List ── */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           <input value={relateCaseFilter} onChange={e => setRelateCaseFilter(e.target.value)} placeholder="Vaka ID veya isim ile ara..." style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13 }} />
-          <select value={relateStatusFilter} onChange={e => setRelateStatusFilter(e.target.value)} style={{ padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, background: "#fff" }}>
-            <option value="all">Tüm Durumlar</option><option value="Open">Open</option><option value="Closed">Closed</option>
-          </select>
+          <FilterBar.Toggle open={relateFilterOpen} onToggle={() => setRelateFilterOpen(v => !v)} activeCount={relateActiveFilterCount} />
         </div>
-        <div style={{ maxHeight: 220, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
-          {filteredCases.map(c => {
+        {relateFilterOpen && (
+          <FilterBar.Panel style={{ marginBottom: 10 }} onReset={() => { setRelateStatusFilter([]); setRelateSeverityFilter([]); setRelateDateFrom(""); setRelateDateTo(""); }}>
+            <FilterBar.ChipGroup label="DURUM" options={[{ key: "Open", label: "Open", bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" }, { key: "Closed", label: "Closed", bg: "#D1FAE5", color: "#065F46", border: "#A7F3D0" }, { key: "Pending Closure", label: "Pending Closure", bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" }]} selected={relateStatusFilter} onToggle={k => setRelateStatusFilter(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k])} />
+            <FilterBar.ChipGroup label="ÖNCELİK" options={[{ key: "critical", label: "Kritik", bg: "#FEE2E2", color: "#991B1B", border: "#FECACA" }, { key: "high", label: "Yüksek", bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" }, { key: "medium", label: "Orta", bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" }, { key: "low", label: "Düşük", bg: "#F3F4F6", color: "#374151", border: "#E5E7EB" }]} selected={relateSeverityFilter} onToggle={k => setRelateSeverityFilter(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k])} />
+            <FilterBar.DateRange label="OLUŞTURMA TARİHİ" from={relateDateFrom} to={relateDateTo} onFromChange={e => setRelateDateFrom(e.target.value)} onToChange={e => setRelateDateTo(e.target.value)} />
+          </FilterBar.Panel>
+        )}
+        <div style={{ maxHeight: 240, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
+          {loadingCandidates ? (
+            <div style={{ padding: 30, textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Vakalar yükleniyor…</div>
+          ) : filteredCases.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Sonuç bulunamadı</div>
+          ) : filteredCases.map(c => {
             const mx = 3, cur = 2;
             const blocked = relateMode === "alt" ? (cur + 1 + c.altSeviyeSayisi) > mx : relateMode === "ust" ? (c.altSeviyeSayisi + 1 + cur) > mx : false;
             const isSelected = selectedRelateCase?.id === c.id;
@@ -1018,17 +1087,17 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
               onMouseEnter={e => { if (!blocked && !isSelected) e.currentTarget.style.background = "#F8FAFC"; }} onMouseLeave={e => { e.currentTarget.style.background = isSelected ? `${C.primaryLight}08` : "#fff"; }}>
               <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: C.primaryLight, fontWeight: 600 }}>#{c.id}</span>
               <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
+              {c.severity && <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: SEVERITY_CONFIG[c.severity]?.bg, color: SEVERITY_CONFIG[c.severity]?.color, border: `1px solid ${SEVERITY_CONFIG[c.severity]?.border}` }}>{SEVERITY_CONFIG[c.severity]?.label}</span>}
               {relateMode !== "kardes" && c.altSeviyeSayisi > 0 && <span style={{ fontSize: 10, color: C.warning, padding: "1px 6px", borderRadius: 4, background: "#FEF3C7", border: "1px solid #FDE68A" }}>{c.altSeviyeSayisi} alt seviye</span>}
               <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: STATUS_CONFIG[c.status]?.bg, color: STATUS_CONFIG[c.status]?.color }}>{c.status}</span>
               {blocked && <span style={{ fontSize: 10, color: C.danger }}>⚠</span>}
               {isSelected && <span style={{ color: C.primaryLight }}><I.Check /></span>}
             </div>); })}
-          {filteredCases.length === 0 && <div style={{ padding: 20, textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Sonuç bulunamadı</div>}
         </div>
 
         {/* ── Confirm ── */}
         <Modal.Footer style={{ marginTop: 16 }}>
-          <Modal.Button label="İptal" onClick={() => { setShowRelateModal(false); setRelateError(""); setSelectedRelateCase(null); setRelateMode("alt"); }} />
+          <Modal.Button label="İptal" onClick={() => { setShowRelateModal(false); setRelateError(""); setSelectedRelateCase(null); setRelateMode("alt"); setRelateCaseFilter(""); setRelateStatusFilter([]); setRelateSeverityFilter([]); setRelateDateFrom(""); setRelateDateTo(""); setRelateFilterOpen(false); }} />
           <Modal.Button label={relateMode === "ust" ? "Üst Vaka Olarak Ata" : relateMode === "alt" ? "Alt Vaka Olarak Ekle" : "Kardeş Vaka Olarak Bağla"} primary disabled={!selectedRelateCase} onClick={async () => {
             if (!selectedRelateCase) return;
             const caseId = baseCase.id;
@@ -1048,26 +1117,80 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
             } catch (err) {
               showToast("error", err?.message || "İlişki eklenirken hata oluştu.");
             }
-            setShowRelateModal(false); setRelateCaseFilter(""); setRelateStatusFilter("all"); setRelateError(""); setSelectedRelateCase(null); setRelateMode("alt");
+            setShowRelateModal(false); setRelateCaseFilter(""); setRelateStatusFilter([]); setRelateSeverityFilter([]); setRelateDateFrom(""); setRelateDateTo(""); setRelateFilterOpen(false); setRelateError(""); setSelectedRelateCase(null); setRelateMode("alt");
           }} bg={relateMode === "ust" ? "#7C3AED" : relateMode === "alt" ? "#1E40AF" : "#059669"} />
         </Modal.Footer>
       </Modal>}
 
       {/* Add Transaction */}
-      {showAddTxnModal && <Modal title="İşlem Ekle" onClose={() => { setShowAddTxnModal(false); setSelectedTxns(new Set()); setTxnSearch(""); setTxnMarkFilter("all"); setTxnTypeFilter("all"); setTxnDateFrom(""); setTxnDateTo(""); }} width={700}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-          <input value={txnSearch} onChange={e => setTxnSearch(e.target.value)} placeholder="İşlem ID, müşteri no ile arayın..." style={{ flex: 1, minWidth: 180, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13 }} />
-          <select value={txnMarkFilter} onChange={e => setTxnMarkFilter(e.target.value)} style={{ padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, background: "#fff" }}>
-            <option value="all">Tüm Durumlar</option><option value="Marked">İşaretli</option><option value="Unmarked">İşaretsiz</option>
-          </select>
-          <select value={txnTypeFilter} onChange={e => setTxnTypeFilter(e.target.value)} style={{ padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, background: "#fff" }}>
-            <option value="all">Tüm Türler</option><option value="Havale">Havale</option><option value="EFT">EFT</option><option value="Kredi Kartı">Kredi Kartı</option><option value="ATM Çekim">ATM Çekim</option><option value="Online Ödeme">Online Ödeme</option><option value="POS">POS</option>
-          </select>
-          <input type="date" value={txnDateFrom} onChange={e => setTxnDateFrom(e.target.value)} placeholder="Tarih başlangıç" style={{ padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
-          <input type="date" value={txnDateTo} onChange={e => setTxnDateTo(e.target.value)} placeholder="Tarih bitiş" style={{ padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
+      {showAddTxnModal && <Modal title="İşlem Ekle" onClose={() => { setShowAddTxnModal(false); setSelectedTxns(new Set()); setTxnSearch(""); setTxnFilters({ markStatus: "Marked", entityType: "", entityId: "", scoreMin: "", scoreMax: "", dateFrom: "", dateTo: "" }); setShowTxnFilterPanel(false); }} width={740}>
+        {/* Search + Filter toggle */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center" }}>
+            <span style={{ position: "absolute", left: 10, color: C.textSecondary, display: "flex", pointerEvents: "none" }}><I.Search /></span>
+            <input value={txnSearch} onChange={e => setTxnSearch(e.target.value)} placeholder="İşlem ID, müşteri no ile arayın..." style={{ width: "100%", padding: "9px 34px 9px 34px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+            {txnSearch && <button onClick={() => setTxnSearch("")} style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", color: C.textSecondary, display: "flex", padding: 2 }}><I.X /></button>}
+          </div>
+          <button onClick={() => setShowTxnFilterPanel(p => !p)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: `1px solid ${showTxnFilterPanel ? C.primaryLight : C.border}`, background: showTxnFilterPanel ? "#EFF6FF" : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500, color: showTxnFilterPanel ? C.primary : C.textSecondary, position: "relative", whiteSpace: "nowrap", transition: "all .15s" }}>
+            <I.Filter />
+            Filtrele
+            {txnActiveFilterCount > 0 && <span style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", background: C.primaryLight, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{txnActiveFilterCount}</span>}
+          </button>
         </div>
-        {selectedTxns.size > 0 && <div style={{ marginBottom: 8, padding: "6px 12px", background: `${C.primaryLight}08`, borderRadius: 6, fontSize: 12, color: C.primaryLight, fontWeight: 600 }}>{selectedTxns.size} işlem seçildi</div>}
-        {loadingTxns ? <div style={{ padding: 40, textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Yükleniyor...</div> : <div style={{ maxHeight: 320, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
+
+        {/* Filter Panel */}
+        {showTxnFilterPanel && <div style={{ background: "#F8FAFC", borderRadius: 10, border: `1px solid ${C.border}`, padding: "16px 18px", marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Filtreler</span>
+            <button onClick={() => setTxnFilters({ markStatus: "Marked", entityType: "", entityId: "", scoreMin: "", scoreMax: "", dateFrom: "", dateTo: "" })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: C.primaryLight, fontWeight: 500 }}>Filtreleri Sıfırla</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.04em" }}>Durum</label>
+              <select value={txnFilters.markStatus} onChange={e => setTxnFilters(f => ({ ...f, markStatus: e.target.value }))} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 12, background: "#fff", outline: "none" }}>
+                <option value="Tümü">Tümü</option>
+                <option value="Marked">İşaretlenmiş</option>
+                <option value="Unmarked">İşaretlenmemiş</option>
+                <option value="Case Assigned">Vakaya Eklenmiş</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.04em" }}>Varlık Türü</label>
+              <select value={txnFilters.entityType} onChange={e => setTxnFilters(f => ({ ...f, entityType: e.target.value, entityId: "" }))} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 12, background: "#fff", outline: "none" }}>
+                <option value="">Tümü</option>
+                <option value="Customer">Müşteri</option>
+                <option value="Account">Hesap</option>
+                <option value="Card">Kart</option>
+                <option value="Device">Cihaz</option>
+              </select>
+            </div>
+            {txnFilters.entityType && <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.04em" }}>{{ Customer: "Müşteri", Account: "Hesap", Card: "Kart", Device: "Cihaz" }[txnFilters.entityType]} ID</label>
+              <input type="text" placeholder={`${{ Customer: "Müşteri", Account: "Hesap", Card: "Kart", Device: "Cihaz" }[txnFilters.entityType]} ID...`} value={txnFilters.entityId} onChange={e => setTxnFilters(f => ({ ...f, entityId: e.target.value }))} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 12, background: "#fff", outline: "none", boxSizing: "border-box" }} />
+            </div>}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.04em" }}>Fraud Skoru Aralığı</label>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input type="number" placeholder="Min" min="0" max="100" value={txnFilters.scoreMin} onChange={e => setTxnFilters(f => ({ ...f, scoreMin: e.target.value }))} style={{ flex: 1, padding: "7px 8px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 12, background: "#fff", outline: "none" }} />
+                <span style={{ color: C.textSecondary, fontSize: 12 }}>—</span>
+                <input type="number" placeholder="Max" min="0" max="100" value={txnFilters.scoreMax} onChange={e => setTxnFilters(f => ({ ...f, scoreMax: e.target.value }))} style={{ flex: 1, padding: "7px 8px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 12, background: "#fff", outline: "none" }} />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.04em" }}>Tarih Aralığı</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input type="date" value={txnFilters.dateFrom} onChange={e => setTxnFilters(f => ({ ...f, dateFrom: e.target.value }))} style={{ flex: 1, padding: "7px 6px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 11, background: "#fff", outline: "none" }} />
+                <input type="date" value={txnFilters.dateTo} onChange={e => setTxnFilters(f => ({ ...f, dateTo: e.target.value }))} style={{ flex: 1, padding: "7px 6px", borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 11, background: "#fff", outline: "none" }} />
+              </div>
+            </div>
+          </div>
+        </div>}
+
+        {selectedTxns.size > 0 && <div style={{ marginBottom: 8, padding: "6px 12px", background: "#FEF3C7", borderRadius: 6, fontSize: 12, color: "#92400E", fontWeight: 600, border: "1px solid #FDE68A", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span>{selectedTxns.size} işlem seçildi</span>
+          <button onClick={() => setSelectedTxns(new Set())} style={{ background: "none", border: "none", cursor: "pointer", color: "#92400E", display: "flex", padding: 0 }}><I.X /></button>
+        </div>}
+        {loadingTxns ? <div style={{ padding: 40, textAlign: "center", color: C.textSecondary, fontSize: 13 }}>Yükleniyor...</div> : <div style={{ maxHeight: 300, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>{["","İşlem ID","Tarih","Tür","Tutar","Skor","Durum"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: 600, color: C.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, background: "#FAFBFD", position: "sticky", top: 0 }}>{h}</th>)}</tr></thead>
             <tbody>{filteredTxns.map(t => { const sel = selectedTxns.has(t.id); const ms = t.markStatus || t.mark_status || ''; return <tr key={t.id} onClick={() => { const n = new Set(selectedTxns); if (sel) n.delete(t.id); else n.add(t.id); setSelectedTxns(n); }} style={{ cursor: "pointer", background: sel ? `${C.primaryLight}06` : "#fff" }} onMouseEnter={e => { if (!sel) e.currentTarget.style.background = "#F8FAFC"; }} onMouseLeave={e => { e.currentTarget.style.background = sel ? `${C.primaryLight}06` : "#fff"; }}>
