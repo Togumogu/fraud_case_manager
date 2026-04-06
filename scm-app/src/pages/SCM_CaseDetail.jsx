@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 import Modal from "../components/Modal";
+import StatusFlow from "../components/StatusFlow";
 import { comments as commentsApi, attachments as attachmentsApi, history as historyApi, reviews as reviewsApi, relations as relationsApi, transactions as txnsApi, fdm as fdmApi, cases as casesApi, approvals as approvalsApi, settings as settingsApi } from "../api/client";
 
 // ═══════════════════════════════════════════════════════════════
@@ -599,9 +600,9 @@ export default function SCMCaseDetail({ onNavigate, initialCase, onCaseUpdated, 
                   <div>
                     {isEditing ? <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={{ fontSize: 20, fontWeight: 700, border: `1px solid ${C.border}`, borderRadius: 6, padding: "4px 10px", fontFamily: "'DM Sans',sans-serif", width: 320 }} />
                     : <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{caseData.name}</h1>}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                       <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: C.textSecondary }}>#{caseData.id}</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 6, background: STATUS_CONFIG[caseData.status]?.bg, color: STATUS_CONFIG[caseData.status]?.color, border: `1px solid ${STATUS_CONFIG[caseData.status]?.border}` }}>{caseData.status}</span>
+                      <StatusFlow status={caseData.status} />
                       {isEditing ? <select value={editForm.severity} onChange={e => setEditForm(f => ({ ...f, severity: e.target.value }))} style={{ fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 8px", fontFamily: "'DM Sans',sans-serif" }}>
                         {Object.entries(SEVERITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                       </select> : <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 6, background: SEVERITY_CONFIG[caseData.severity]?.bg, color: SEVERITY_CONFIG[caseData.severity]?.color, border: `1px solid ${SEVERITY_CONFIG[caseData.severity]?.border}` }}>{SEVERITY_CONFIG[caseData.severity]?.label}</span>}
@@ -1259,9 +1260,33 @@ function HistoryTab({ history = CASE_HISTORY }) {
     prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
   );
 
-  let globalIdx = 0;
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+  const toggleGroup = key => setCollapsedGroups(prev => ({ ...prev, [key]: !prev[key] }));
 
   return <div>
+    <style>{`
+      @keyframes scm-node-appear-hist {
+        0%   { opacity:0; transform:scale(0);   }
+        60%  { opacity:1; transform:scale(1.3); }
+        100% { opacity:1; transform:scale(1);   }
+      }
+      @keyframes scm-line-draw-hist {
+        from { stroke-dashoffset: 2000; }
+        to   { stroke-dashoffset: 0; }
+      }
+      .scm-history-card {
+        background: var(--color-bg-surface, #fff);
+        border: 1px solid var(--color-border, #E2E8F0);
+        border-left-width: 3px;
+        border-radius: 10px;
+        padding: 12px 16px;
+        transition: box-shadow .15s ease, border-color .15s ease;
+        cursor: default;
+      }
+      .scm-history-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
+      .scm-group-toggle { cursor: pointer; user-select: none; }
+      .scm-group-toggle:hover { opacity: 0.75; }
+    `}</style>
     {/* Filter Chips */}
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
       {HISTORY_FILTER_CHIPS.map(chip => {
@@ -1300,78 +1325,137 @@ function HistoryTab({ history = CASE_HISTORY }) {
       }}>Filtreleri Temizle</button>}
     </div>}
 
-    {/* Grouped Timeline */}
-    {groups.map(group => <div key={group.dateKey}>
-      {/* Date Separator */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0 12px" }}>
-        <div style={{ flex: 1, height: 1, background: C.border }} />
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, whiteSpace: "nowrap", letterSpacing: 0.3, fontFamily: "'DM Sans',sans-serif" }}>{group.dateLabel}</span>
-        <div style={{ flex: 1, height: 1, background: C.border }} />
-      </div>
+    {/* Grouped Timeline — collapsible, color-coded trails, scroll-reveal nodes */}
+    {groups.map(group => {
+      const isCollapsed = !!collapsedGroups[group.dateKey];
+      return (
+        <div key={group.dateKey}>
+          {/* Collapsible Date Header */}
+          <div
+            className="scm-group-toggle"
+            onClick={() => toggleGroup(group.dateKey)}
+            style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0 12px" }}
+          >
+            <div style={{ flex: 1, height: 1, background: C.border }} />
+            <span style={{
+              display: "flex", alignItems: "center", gap: 6,
+              fontSize: 11, fontWeight: 700, color: C.textSecondary,
+              whiteSpace: "nowrap", letterSpacing: 0.3, fontFamily: "'DM Sans',sans-serif",
+            }}>
+              {group.dateLabel}
+              <span style={{ fontSize: 10, background: C.border, borderRadius: 10, padding: "1px 6px" }}>
+                {group.items.length}
+              </span>
+              <span style={{
+                fontSize: 10, display: "inline-block",
+                transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                transition: "transform 0.22s ease",
+              }}>▾</span>
+            </span>
+            <div style={{ flex: 1, height: 1, background: C.border }} />
+          </div>
 
-      {/* Timeline */}
-      <div style={{ position: "relative", paddingLeft: 40 }}>
-        <div style={{ position: "absolute", left: 15, top: 0, bottom: 0, width: 2, background: C.border }} />
+          <div style={{
+            maxHeight: isCollapsed ? 0 : 9999, overflow: "hidden",
+            transition: "max-height 0.32s cubic-bezier(0.16,1,0.3,1)",
+          }}>
+            <div style={{ position: "relative", paddingLeft: 40 }}>
+              {/* SVG animated vertical connecting line */}
+              <svg
+                style={{ position: "absolute", left: 14, top: 0, width: 4, height: "100%", pointerEvents: "none" }}
+                preserveAspectRatio="none"
+              >
+                <line
+                  x1="2" y1="0" x2="2" y2="100%"
+                  stroke={C.border} strokeWidth="2"
+                  strokeDasharray="2000" strokeDashoffset="0"
+                  style={{ animation: "scm-line-draw-hist 0.9s ease both" }}
+                />
+              </svg>
 
-        {group.items.map(h => {
-          const cfg = HISTORY_ACTION_CONFIG[h.action] || { icon: I.Clock, color: C.textSecondary, category: "other" };
-          const ActionIcon = cfg.icon;
-          const date = parseDateTR(h.date);
-          const rel = date ? formatRelativeTime(date) : null;
-          const idx = globalIdx++;
+              {group.items.map((h, itemIdx) => {
+                const cfg = HISTORY_ACTION_CONFIG[h.action] || { icon: I.Clock, color: C.textSecondary, category: "other" };
+                const ActionIcon = cfg.icon;
+                const date = parseDateTR(h.date);
+                const rel = date ? formatRelativeTime(date) : null;
+                const nextCfg = group.items[itemIdx + 1]
+                  ? (HISTORY_ACTION_CONFIG[group.items[itemIdx + 1].action] || { color: C.border })
+                  : null;
 
-          return <div key={h.id} style={{ position: "relative", paddingBottom: 16, paddingLeft: 28, animation: `slideUp .3s ease ${Math.min(idx * 0.03, 0.5)}s both` }}>
-            {/* Timeline Dot with Icon */}
-            <div style={{
-              position: "absolute", left: -15, top: 2, width: 30, height: 30, borderRadius: "50%",
-              background: cfg.color + "15", border: `2px solid ${cfg.color}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              color: cfg.color, zIndex: 1,
-            }}><ActionIcon /></div>
-
-            {/* Event Card */}
-            <div
-              style={{
-                background: C.card, border: `1px solid ${C.border}`, borderRadius: 10,
-                padding: "12px 16px", transition: "box-shadow .15s ease, border-color .15s ease",
-                cursor: "default",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.06)"; e.currentTarget.style.borderColor = cfg.color + "40"; }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.border; }}
-            >
-              {/* Top: action badge + time */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{
-                  fontSize: 11.5, fontWeight: 700, color: cfg.color,
-                  background: cfg.color + "12", padding: "2px 10px", borderRadius: 6,
-                }}>{h.action}</span>
-                <span style={{ fontSize: 11, color: C.textSecondary, display: "flex", alignItems: "center", gap: 4 }}>
-                  <I.Clock /> {rel || h.date}
-                </span>
-              </div>
-
-              {/* Detail */}
-              <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, marginBottom: 8 }}>
-                {highlightChange(h.detail, cfg.color)}
-              </div>
-
-              {/* Bottom: user avatar + name + absolute date */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{
-                  width: 22, height: 22, borderRadius: "50%",
-                  background: cfg.color + "18", color: cfg.color,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 10, fontWeight: 800,
-                }}>{h.user?.charAt(0).toUpperCase()}</div>
-                <span style={{ fontSize: 11.5, fontWeight: 500, color: C.text }}>{h.user}</span>
-                <span style={{ fontSize: 10.5, color: C.textSecondary, marginLeft: "auto" }}>{h.date}</span>
-              </div>
+                return (
+                  <HistoryScrollReveal key={h.id} delay={itemIdx * 50}>
+                    <div style={{ position: "relative", paddingBottom: 16, paddingLeft: 28 }}>
+                      {/* Color-coded trail segment to next item */}
+                      {nextCfg && (
+                        <div style={{
+                          position: "absolute", left: -1, top: 32, width: 4, bottom: 0,
+                          background: `linear-gradient(to bottom, ${cfg.color}55, ${nextCfg.color}30)`,
+                          borderRadius: 2,
+                        }} />
+                      )}
+                      {/* Animated node */}
+                      <div style={{
+                        position: "absolute", left: -15, top: 2,
+                        width: 30, height: 30, borderRadius: "50%",
+                        background: cfg.color + "15", border: `2px solid ${cfg.color}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        color: cfg.color, zIndex: 1,
+                        animation: `scm-node-appear-hist 0.4s ${itemIdx * 60}ms cubic-bezier(0.16,1,0.3,1) both`,
+                      }}>
+                        <ActionIcon />
+                      </div>
+                      {/* Event Card */}
+                      <div
+                        className="scm-history-card"
+                        style={{ borderLeftColor: cfg.color + "60" }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = cfg.color + "55"; e.currentTarget.style.boxShadow = `0 4px 14px ${cfg.color}20`; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "none"; }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: cfg.color, background: cfg.color + "12", padding: "2px 10px", borderRadius: 6 }}>{h.action}</span>
+                          <span style={{ fontSize: 11, color: C.textSecondary, display: "flex", alignItems: "center", gap: 4 }}><I.Clock /> {rel || h.date}</span>
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, marginBottom: 8 }}>{highlightChange(h.detail, cfg.color)}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 22, height: 22, borderRadius: "50%", background: cfg.color + "18", color: cfg.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>{h.user?.charAt(0).toUpperCase()}</div>
+                          <span style={{ fontSize: 11.5, fontWeight: 500, color: C.text }}>{h.user}</span>
+                          <span style={{ fontSize: 10.5, color: C.textSecondary, marginLeft: "auto" }}>{h.date}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </HistoryScrollReveal>
+                );
+              })}
             </div>
-          </div>;
-        })}
-      </div>
-    </div>)}
+          </div>
+        </div>
+      );
+    })}
   </div>;
+}
+
+// Scroll-reveal wrapper using IntersectionObserver
+function HistoryScrollReveal({ children, delay = 0 }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setVisible(true); obs.disconnect(); }
+    }, { threshold: 0.05, rootMargin: "0px 0px -12px 0px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return (
+    <div ref={ref} style={{
+      opacity: visible ? 1 : 0,
+      transform: visible ? "translateY(0)" : "translateY(16px)",
+      transition: `opacity 0.36s ease ${delay}ms, transform 0.36s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
+    }}>
+      {children}
+    </div>
+  );
 }
 
 function TransactionsTab({ onAdd, onRemove, transactions, readOnly }) {

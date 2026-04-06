@@ -266,6 +266,14 @@ export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading
 
   const isCaseTable = ["case_list", "my_cases", "deleted"].includes(activeView);
 
+  // Severity → subtle left-to-right gradient for table rows
+  const SEVERITY_ROW_GRADIENT = {
+    critical: "linear-gradient(90deg, rgba(220,38,38,0.07) 0%, transparent 42%)",
+    high:     "linear-gradient(90deg, rgba(245,158,11,0.07) 0%, transparent 42%)",
+    medium:   "linear-gradient(90deg, rgba(59,130,246,0.05) 0%, transparent 32%)",
+    low:      "transparent",
+  };
+
   const tableCols = [
     { key: "_check", label: "", w: 40 },
     { key: "id", label: "Case ID", w: 85, type: "text" },
@@ -510,14 +518,25 @@ export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading
                         ))}
                       </tr>
                     ))}
-                    {!casesLoading && paginated.map(c => (
-                      <tr key={c.id} style={{ borderBottom: `1px solid ${COLORS.border}`, transition: "background 0.1s", background: selectedCases.has(c.id) ? "#EFF6FF" : "transparent" }}
+                    {!casesLoading && paginated.map(c => {
+                      const sevGrad = !selectedCases.has(c.id) ? (SEVERITY_ROW_GRADIENT[c.severity] || "transparent") : "transparent";
+                      return (
+                      <tr key={c.id} style={{ borderBottom: `1px solid ${COLORS.border}`, transition: "background 0.12s", background: selectedCases.has(c.id) ? "#EFF6FF" : sevGrad }}
                         onMouseEnter={e => { if (!selectedCases.has(c.id)) e.currentTarget.style.background = "#FAFBFC"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = selectedCases.has(c.id) ? "#EFF6FF" : "transparent"; }}>
+                        onMouseLeave={e => { e.currentTarget.style.background = selectedCases.has(c.id) ? "#EFF6FF" : (SEVERITY_ROW_GRADIENT[c.severity] || "transparent"); }}>
                         <td style={{ padding: "11px 8px", textAlign: "center" }}>
                           <input type="checkbox" checked={selectedCases.has(c.id)} onChange={() => toggleSelect(c.id)} style={{ width: 15, height: 15, cursor: "pointer", accentColor: COLORS.primary }} />
                         </td>
-                        <td style={{ padding: "11px 8px", fontWeight: 700, color: COLORS.primary, cursor: "pointer" }} onClick={() => setDrawerCase(c)}>#{c.id}</td>
+                        <td style={{ padding: "11px 8px", fontWeight: 700, color: COLORS.primary, cursor: "pointer" }} onClick={() => setDrawerCase(c)}>
+                          {c.severity === "critical" && (
+                            <span style={{
+                              display: "inline-block", width: 7, height: 7, borderRadius: "50%",
+                              background: "#DC2626", marginRight: 5, verticalAlign: "middle",
+                              animation: "scm-pulse-dot 1.5s ease-in-out infinite",
+                            }} />
+                          )}
+                          #{c.id}
+                        </td>
                         <td style={{ padding: "11px 8px", fontWeight: 600, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }} onClick={() => setDrawerCase(c)}>{c.name}</td>
                         <td style={{ padding: "11px 8px" }}><Badge config={STATUS_CONFIG[c.status]} /></td>
                         <td style={{ padding: "11px 8px" }}><Badge config={SEVERITY_CONFIG[c.severity]} /></td>
@@ -548,7 +567,8 @@ export default function SCMCaseList({ onNavigate, cases: casesProp, casesLoading
                           {c.totalAmount > 0 ? (displayCurrency === "original" ? formatCurrency(c.totalAmount, c.currency) : <span>{formatCurrency(convertAmount(c.totalAmount, c.currency, displayCurrency), displayCurrency)}{c.currency !== displayCurrency && <span style={{ fontSize: 10, fontWeight: 400, color: COLORS.textSecondary, marginLeft: 4 }}>({formatCurrency(c.totalAmount, c.currency)})</span>}</span>) : <span style={{ color: COLORS.textSecondary, fontWeight: 400 }}>—</span>}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                     {!casesLoading && paginated.length === 0 && <tr><td colSpan={tableCols.length} style={{ padding: 40, textAlign: "center", color: COLORS.textSecondary }}>Filtre kriterlerine uygun vaka bulunamadı.</td></tr>}
                   </tbody>
                 </table>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import PageTransition from "./components/PageTransition";
 import SCMDashboard from "./pages/SCM_Dashboard";
 import SCMCaseList from "./pages/SCM_CaseList";
 import SCMCaseCreation from "./pages/SCM_CaseCreation";
@@ -266,15 +267,17 @@ export default function SCMApp() {
 
   return (
     <>
-      {activePage === "dashboard"      && <SCMDashboard         {...p} cases={cases} />}
-      {activePage === "activities"     && <SCMActivities        {...p} />}
-      {activePage === "case_creation"  && <SCMCaseCreation      {...p} transactions={transactions} cases={cases} onCaseCreated={onCaseCreated} />}
-      {activePage === "cases"          && <SCMCaseList          {...p} cases={cases} casesLoading={casesLoading} onCaseUpdated={onCaseUpdated} initialNavKey={initialNavKey} />}
-      {activePage === "case_detail"    && <SCMCaseDetail        {...p} key={selectedCase?.id} initialCase={selectedCase} onCaseUpdated={onCaseUpdated} />}
-      {activePage === "review"         && <SCMReview            {...p} />}
-      {activePage === "txn_search"     && <SCMTransactionSearch {...p} transactions={transactions} />}
-      {activePage === "reports"        && <SCMReports           {...p} />}
-      {activePage === "settings"       && <SCMSettings          {...p} />}
+      <PageTransition key={activePage}>
+        {activePage === "dashboard"      && <SCMDashboard         {...p} cases={cases} />}
+        {activePage === "activities"     && <SCMActivities        {...p} />}
+        {activePage === "case_creation"  && <SCMCaseCreation      {...p} transactions={transactions} cases={cases} onCaseCreated={onCaseCreated} />}
+        {activePage === "cases"          && <SCMCaseList          {...p} cases={cases} casesLoading={casesLoading} onCaseUpdated={onCaseUpdated} initialNavKey={initialNavKey} />}
+        {activePage === "case_detail"    && <SCMCaseDetail        {...p} key={selectedCase?.id} initialCase={selectedCase} onCaseUpdated={onCaseUpdated} />}
+        {activePage === "review"         && <SCMReview            {...p} />}
+        {activePage === "txn_search"     && <SCMTransactionSearch {...p} transactions={transactions} />}
+        {activePage === "reports"        && <SCMReports           {...p} />}
+        {activePage === "settings"       && <SCMSettings          {...p} />}
+      </PageTransition>
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </>
   );

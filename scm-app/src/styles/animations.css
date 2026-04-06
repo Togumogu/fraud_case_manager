@@ -1,0 +1,131 @@
+/* ═══════════════════════════════════════════════════════════
+   NEXUS — Shared Animations
+   GPU-composited only (transform + opacity) — no layout shifts.
+   All durations respect prefers-reduced-motion.
+═══════════════════════════════════════════════════════════ */
+
+/* ── Page entrance ────────────────────────────────────────── */
+@keyframes scm-page-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* ── Stagger-in for child elements ───────────────────────── */
+@keyframes scm-stagger-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* ── Fade in only ────────────────────────────────────────── */
+@keyframes scm-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Scale + fade in (for cards, badges) ─────────────────── */
+@keyframes scm-pop-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+/* ── Pulse glow (for active nodes, critical badges) ─────── */
+@keyframes scm-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor;    opacity: 1;    }
+  50%       { box-shadow: 0 0 0 6px transparent;  opacity: 0.75; }
+}
+
+/* ── Critical row pulse dot ──────────────────────────────── */
+@keyframes scm-pulse-dot {
+  0%, 100% { transform: scale(1);   opacity: 1;    }
+  50%       { transform: scale(1.5); opacity: 0.5; }
+}
+
+/* ── Glassmorphism shimmer sweep ─────────────────────────── */
+@keyframes scm-glass-sweep {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* ── Funnel stage slide-in ───────────────────────────────── */
+@keyframes scm-funnel-in {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0);     }
+}
+
+/* ── Timeline line draw ──────────────────────────────────── */
+@keyframes scm-line-draw {
+  from { stroke-dashoffset: 1000; }
+  to   { stroke-dashoffset: 0;    }
+}
+
+/* ── Timeline node pulse (one-time on mount) ─────────────── */
+@keyframes scm-node-appear {
+  0%   { opacity: 0; transform: scale(0);   }
+  60%  { opacity: 1; transform: scale(1.3); }
+  100% { opacity: 1; transform: scale(1);   }
+}
+
+/* ── Scroll-reveal for timeline events ───────────────────── */
+@keyframes scm-reveal-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* ── Status flow pipeline ────────────────────────────────── */
+@keyframes scm-status-glow {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(30,64,175,0.2); }
+  50%       { box-shadow: 0 0 0 8px rgba(30,64,175,0.05); }
+}
+
+/* ── Gauge fill animation ────────────────────────────────── */
+@keyframes scm-gauge-fill {
+  from { stroke-dashoffset: 226; }
+}
+
+/* ── Badge bounce ────────────────────────────────────────── */
+@keyframes scm-badge-bounce {
+  0%   { transform: scale(1);    }
+  35%  { transform: scale(1.25); }
+  60%  { transform: scale(0.9);  }
+  80%  { transform: scale(1.08); }
+  100% { transform: scale(1);    }
+}
+
+/* ── Page wrapper ─────────────────────────────────────────── */
+.scm-page-transition {
+  animation: scm-page-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Stagger helpers (apply to direct children) ──────────── */
+.scm-stagger > * {
+  animation: scm-stagger-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.scm-stagger > *:nth-child(1)  { animation-delay: 0ms;   }
+.scm-stagger > *:nth-child(2)  { animation-delay: 40ms;  }
+.scm-stagger > *:nth-child(3)  { animation-delay: 80ms;  }
+.scm-stagger > *:nth-child(4)  { animation-delay: 120ms; }
+.scm-stagger > *:nth-child(5)  { animation-delay: 160ms; }
+.scm-stagger > *:nth-child(6)  { animation-delay: 200ms; }
+.scm-stagger > *:nth-child(n+7){ animation-delay: 240ms; }
+
+/* ── Utility ─────────────────────────────────────────────── */
+.scm-hover-lift {
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+}
+.scm-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.09), 0 4px 8px rgba(0,0,0,0.05);
+}
+.scm-hover-lift:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ── Reduced motion override ─────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .scm-page-transition,
+  .scm-stagger > * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

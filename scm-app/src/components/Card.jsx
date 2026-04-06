@@ -18,6 +18,7 @@
  */
 
 import { useState } from "react";
+import useAnimatedNumber from "../hooks/useAnimatedNumber";
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────────
 // Mirror the COLORS / C constants used across all page files.
@@ -155,6 +156,7 @@ export function Card({
   accentColor,
   onClick,
   style = {},
+  className = "",
   // a11y pass-throughs
   role,
   "aria-label": ariaLabel,
@@ -199,7 +201,7 @@ export function Card({
 
   return (
     <div
-      className="scm-card"
+      className={`scm-card${className ? " " + className : ""}`}
       style={rootStyle}
       role={role ?? (isInteractive ? "button" : undefined)}
       aria-label={ariaLabel}
@@ -288,6 +290,14 @@ Card.Footer = function CardFooter({ children, style = {} }) {
  * @param {boolean}        [disabled]
  * @param {Function}       [onClick]
  */
+// AnimatedValue — counts up for numeric values, passes through strings
+function AnimatedValue({ value, style }) {
+  const numericTarget = typeof value === "number" ? value : (typeof value === "string" && /^\d+$/.test(value.toString().replace(/[,.\s]/g, "")) ? parseInt(value.toString().replace(/[,.\s]/g, ""), 10) : null);
+  const animated = useAnimatedNumber(numericTarget ?? 0, 900);
+  const display  = numericTarget !== null ? animated.toLocaleString("tr-TR") : value;
+  return <span style={style}>{display}</span>;
+}
+
 Card.KPI = function CardKPI({
   icon,
   value,
@@ -302,6 +312,9 @@ Card.KPI = function CardKPI({
   disabled    = false,
   onClick,
 }) {
+  // CSS var for per-card glow color (used by .scm-card-glass:hover in card.css)
+  const glowVar = ghost(iconColor, 0.22);
+
   return (
     <Card
       interactive={interactive}
@@ -310,13 +323,15 @@ Card.KPI = function CardKPI({
       accentColor={accentColor}
       onClick={onClick}
       aria-label={label}
-      style={{ padding: "20px" }}
+      className="scm-card-glass"
+      style={{ padding: "20px", "--kpi-glow-color": glowVar }}
     >
       {/* Row 1: icon left, trend right */}
       <div style={{
         display: "flex", alignItems: "flex-start",
         justifyContent: "space-between",
         marginBottom: 14, gap: 8,
+        position: "relative", zIndex: 1,
       }}>
         {loading
           ? <Shimmer width={42} height={42} radius={T.radiusIcon} />
@@ -337,8 +352,9 @@ Card.KPI = function CardKPI({
             fontFamily: T.fontData,
             color: T.text, lineHeight: 1,
             marginBottom: 6, letterSpacing: "-0.5px",
+            position: "relative", zIndex: 1,
           }}>
-            {value}
+            <AnimatedValue value={value} />
           </div>
         )
       }
@@ -350,6 +366,7 @@ Card.KPI = function CardKPI({
           <div style={{
             fontSize: 13, fontWeight: 500, color: T.text,
             marginBottom: sublabel ? 3 : 0,
+            position: "relative", zIndex: 1,
           }}>
             {label}
           </div>
@@ -358,7 +375,7 @@ Card.KPI = function CardKPI({
 
       {/* Sublabel */}
       {!loading && sublabel && (
-        <div style={{ fontSize: 11, color: T.textSecondary }}>
+        <div style={{ fontSize: 11, color: T.textSecondary, position: "relative", zIndex: 1 }}>
           {sublabel}
         </div>
       )}
