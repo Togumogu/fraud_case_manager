@@ -54,6 +54,7 @@ const ACTIVE_USERS = [
   { id: 7, name: "Selin Aydın", role: "İnceleyici" },
 ];
 
+
 const FRAUD_DOMAINS = [
   { id: "payment", label: "Payment Fraud", icon: "₺", color: "#0891B2" },
   { id: "credit_card", label: "Credit Card Fraud", icon: "💳", color: "#8B5CF6" },
@@ -334,6 +335,56 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
     if (showToast) showToast("success", approved ? "Onay verildi" : "Onay reddedildi");
     dashboardApi.kpis({ domain: selectedDomain }).then(k => setAnimatedKPIs(prev => ({ ...prev, ...k }))).catch(() => {});
   };
+
+  const DOMAIN_LABELS = { payment: "Payment Fraud", credit_card: "Credit Card Fraud", application: "Application Fraud", account_takeover: "Account Takeover", internal: "Internal Fraud" };
+  const MONTH_LABELS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+
+  const bankCustomerDistData = useMemo(() => {
+    if (!cases || cases.length === 0) return null;
+    const active = cases.filter(c => c.status !== "Deleted" && !c.is_deleted && (c.totalAmount || 0) > 0);
+    if (active.length === 0) return null;
+
+    let totalBank = 0, totalCustomer = 0, totalAmount = 0;
+    const domainMap = {};
+    const monthMap = {};
+
+    active.forEach(c => {
+      const amount = c.totalAmount || 0;
+      const bank = c.bankShare || 0;
+      const customer = c.customerShare || 0;
+      totalBank += bank;
+      totalCustomer += customer;
+      totalAmount += amount;
+
+      const d = c.domain_id || "unknown";
+      if (!domainMap[d]) domainMap[d] = { bank: 0, customer: 0, total: 0 };
+      domainMap[d].bank += bank;
+      domainMap[d].customer += customer;
+      domainMap[d].total += amount;
+
+      const raw = (c.createDate || "").split(" ")[0].split(".");
+      if (raw.length === 3) {
+        const mo = parseInt(raw[1], 10) - 1;
+        const yr = parseInt(raw[2], 10);
+        const key = `${yr}-${String(mo + 1).padStart(2, "0")}`;
+        if (!monthMap[key]) monthMap[key] = { month: MONTH_LABELS[mo], bank: 0, customer: 0, sortKey: key };
+        monthMap[key].bank += bank;
+        monthMap[key].customer += customer;
+      }
+    });
+
+    const byDomain = Object.entries(domainMap)
+      .filter(([, v]) => v.total > 0)
+      .map(([id, v]) => ({ id, label: DOMAIN_LABELS[id] || id, bank: v.bank, customer: v.customer, undetermined: Math.max(0, v.total - v.bank - v.customer) }));
+
+    const monthly = Object.values(monthMap).sort((a, b) => a.sortKey.localeCompare(b.sortKey)).slice(-6);
+
+    return {
+      total: { bank: totalBank, customer: totalCustomer, undetermined: Math.max(0, totalAmount - totalBank - totalCustomer) },
+      byDomain,
+      monthly,
+    };
+  }, [cases]);
 
   const kpiCards = [
     { key: "totalCases", label: "Toplam Vaka", sublabel: "Total Cases", value: animatedKPIs.totalCases || 0, icon: <Icons.TotalCases />, color: "#3B82F6", bg: "#EFF6FF", nav: "cases" },
@@ -766,6 +817,163 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
               </div>
             )}
           </div>
+
+          {/* Analytics: Banka-Müşteri Kayıp Dağılımı */}
+          {bankCustomerDistData && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 16 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: COLORS.text }}>Banka-Müşteri Kayıp Analizi</h3>
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: COLORS.textSecondary }}>Fraud kayıplarının banka ve müşteri bazında dağılımı</p>
+              </div>
+            </div>
+
+            {/* Row 1: Özet + Domain Dağılımı */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 20, marginBottom: 20 }}>
+
+              {/* Toplam Kayıp Özeti */}
+              <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, padding: "22px 24px" }}>
+                <h4 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Toplam Kayıp Özeti</h4>
+                <p style={{ margin: "0 0 16px", fontSize: 11.5, color: COLORS.textSecondary }}>Tüm domainler geneli</p>
+                {(() => {
+                  const t = bankCustomerDistData.total;
+                  const total = t.bank + t.customer + t.undetermined;
+                  const bankPct = ((t.bank / total) * 100).toFixed(1);
+                  const custPct = ((t.customer / total) * 100).toFixed(1);
+                  const undetPct = (100 - parseFloat(bankPct) - parseFloat(custPct)).toFixed(1);
+                  return (
+                    <>
+                      <div style={{ fontSize: 26, fontWeight: 700, color: COLORS.text, lineHeight: 1, marginBottom: 4, fontFamily: "'JetBrains Mono', monospace" }}>
+                        {total.toLocaleString("tr-TR")} ₺
+                      </div>
+                      <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>Toplam tespit edilen fraud tutarı</p>
+                      <div style={{ height: 10, borderRadius: 5, overflow: "hidden", display: "flex", marginBottom: 16 }}>
+                        <div style={{ width: `${bankPct}%`, background: "#1E40AF" }} />
+                        <div style={{ width: `${custPct}%`, background: "#F59E0B" }} />
+                        <div style={{ flex: 1, background: "#CBD5E1" }} />
+                      </div>
+                      {[
+                        { label: "Banka Zararı", amount: t.bank, color: "#1E40AF", pct: bankPct },
+                        { label: "Müşteri Zararı", amount: t.customer, color: "#D97706", pct: custPct },
+                        { label: "Belirlenmemiş", amount: t.undetermined, color: "#94A3B8", pct: undetPct },
+                      ].map((row, i, arr) => (
+                        <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < arr.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: 3, background: row.color, flexShrink: 0 }} />
+                            <span style={{ fontSize: 13, color: COLORS.textSecondary }}>{row.label}</span>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: row.color, fontFamily: "'JetBrains Mono', monospace" }}>
+                              {row.amount.toLocaleString("tr-TR")} ₺
+                            </div>
+                            <div style={{ fontSize: 11, color: COLORS.textSecondary }}>{row.pct}%</div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Domain Bazında Dağılım */}
+              <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, padding: "22px 24px" }}>
+                <h4 style={{ margin: "0 0 4px", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Domain Bazında Dağılım</h4>
+                <p style={{ margin: "0 0 14px", fontSize: 11.5, color: COLORS.textSecondary }}>Her fraud alanı için banka/müşteri kayıp oranı</p>
+                <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+                  {[
+                    { label: "Banka", color: "#1E40AF" },
+                    { label: "Müşteri", color: "#F59E0B" },
+                    { label: "Belirlenmemiş", color: "#CBD5E1" },
+                  ].map(l => (
+                    <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color }} />
+                      <span style={{ fontSize: 11.5, color: COLORS.textSecondary }}>{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+                {bankCustomerDistData.byDomain.map(row => {
+                  const total = row.bank + row.customer + row.undetermined;
+                  const bankPct = (row.bank / total) * 100;
+                  const custPct = (row.customer / total) * 100;
+                  return (
+                    <div key={row.id} style={{ marginBottom: 16 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 500, color: COLORS.text }}>{row.label}</span>
+                        <span style={{ fontSize: 12, color: COLORS.textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>
+                          {total.toLocaleString("tr-TR")} ₺
+                        </span>
+                      </div>
+                      <div style={{ height: 8, borderRadius: 4, overflow: "hidden", display: "flex", background: "#F1F5F9" }}>
+                        <div style={{ width: `${bankPct}%`, background: "#1E40AF" }} />
+                        <div style={{ width: `${custPct}%`, background: "#F59E0B" }} />
+                        <div style={{ flex: 1, background: "#CBD5E1" }} />
+                      </div>
+                      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                        <span style={{ fontSize: 10.5, color: "#1E40AF", fontWeight: 500 }}>B: {bankPct.toFixed(0)}%</span>
+                        <span style={{ fontSize: 10.5, color: "#D97706", fontWeight: 500 }}>M: {custPct.toFixed(0)}%</span>
+                        <span style={{ fontSize: 10.5, color: "#94A3B8" }}>?: {(100 - bankPct - custPct).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Row 2: Aylık Trend */}
+            {bankCustomerDistData.monthly?.length > 0 && (
+            <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, padding: "22px 24px" }}>
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 16 }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Aylık Kayıp Trendi</h4>
+                  <p style={{ margin: "2px 0 0", fontSize: 11.5, color: COLORS.textSecondary }}>Son {bankCustomerDistData.monthly.length} ay — banka ve müşteri kayıp karşılaştırması</p>
+                </div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  {[
+                    { label: "Banka Zararı", color: "#1E40AF" },
+                    { label: "Müşteri Zararı", color: "#F59E0B" },
+                  ].map(l => (
+                    <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: 2, background: l.color }} />
+                      <span style={{ fontSize: 12, color: COLORS.textSecondary }}>{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {(() => {
+                const maxVal = Math.max(...bankCustomerDistData.monthly.map(m => Math.max(m.bank, m.customer)));
+                const chartH = 120;
+                return (
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 0, height: chartH + 28, borderLeft: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`, paddingLeft: 8 }}>
+                    {bankCustomerDistData.monthly.map(m => {
+                      const bankH = Math.round((m.bank / maxVal) * chartH);
+                      const custH = Math.round((m.customer / maxVal) * chartH);
+                      return (
+                        <div key={m.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: chartH }}>
+                            <div
+                              title={`Banka: ${m.bank.toLocaleString("tr-TR")} ₺`}
+                              style={{ width: 22, height: bankH, background: "#1E40AF", borderRadius: "4px 4px 0 0", minHeight: 3, cursor: "default" }}
+                              onMouseEnter={e => e.currentTarget.style.opacity = "0.75"}
+                              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                            />
+                            <div
+                              title={`Müşteri: ${m.customer.toLocaleString("tr-TR")} ₺`}
+                              style={{ width: 22, height: custH, background: "#F59E0B", borderRadius: "4px 4px 0 0", minHeight: 3, cursor: "default" }}
+                              onMouseEnter={e => e.currentTarget.style.opacity = "0.75"}
+                              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                            />
+                          </div>
+                          <span style={{ fontSize: 11.5, color: COLORS.textSecondary, fontWeight: 500, marginTop: 6 }}>{m.month}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+            )}
+          </div>
+          )}
 
           {/* Unassigned Cases */}
           <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>

@@ -132,6 +132,7 @@ export const dashboard = {
   riskScoreDistribution: (params = {}) => get(`/dashboard/risk-score-distribution${qs(params)}`),
   analystPerformance: (params = {}) => get(`/dashboard/analyst-performance${qs(params)}`),
   fraudFunnel: (params = {}) => get(`/dashboard/fraud-funnel${qs(params)}`),
+  bankCustomerDist: (params = {}) => get(`/dashboard/bank-customer-distribution${qs(params)}`),
 };
 
 export default { fdm, cases, transactions, comments, attachments, history, reviews, relations, users, settings, approvals, dashboard };
