@@ -137,6 +137,16 @@ const MOCK_CASES = [
   { id:2459, name:"ATM Skimming", status:"Closed", severity:"critical", owner:"Elif Yılmaz", date:"01.03.2026", amount:"₺345.600" },
 ];
 
+const CONFIG_AUDIT_LOG = [
+  { id: 1, user: "Zeynep Demir", domain: "Payment Fraud", setting: "maker_checker_enabled", oldValue: "false", newValue: "true", timestamp: "14.03.2026 09:20", ip: "10.0.1.45" },
+  { id: 2, user: "Zeynep Demir", domain: "Payment Fraud", setting: "notification_enabled", oldValue: "false", newValue: "true", timestamp: "14.03.2026 09:18", ip: "10.0.1.45" },
+  { id: 3, user: "Zeynep Demir", domain: "Payment Fraud", setting: "notification_enabled", oldValue: "false", newValue: "true", timestamp: "14.03.2026 09:15", ip: "10.0.1.45" },
+  { id: 4, user: "Zeynep Demir", domain: "Account Takeover", setting: "notification_enabled", oldValue: "false", newValue: "true", timestamp: "12.03.2026 16:42", ip: "10.0.1.45" },
+  { id: 6, user: "Zeynep Demir", domain: "Credit Card Fraud", setting: "default_currency", oldValue: "original", newValue: "TRY", timestamp: "11.03.2026 14:05", ip: "10.0.1.45" },
+  { id: 7, user: "Zeynep Demir", domain: "Application Fraud", setting: "maker_checker_enabled", oldValue: "true", newValue: "false", timestamp: "10.03.2026 11:30", ip: "10.0.1.45" },
+  { id: 8, user: "Zeynep Demir", domain: "Application Fraud", setting: "auto_assign_enabled", oldValue: "false", newValue: "true", timestamp: "10.03.2026 11:28", ip: "10.0.1.45" },
+];
+
 const C = { sidebar:"#0F172A", sidebarHover:"#1E293B", primary:"#1E40AF", primaryLight:"#3B82F6", bg:"#F1F5F9", text:"#0F172A", textSecondary:"#64748B", border:"#E2E8F0", success:"#059669", warning:"#D97706", danger:"#DC2626" };
 const STATUS_MAP = { Open:{ label:"Açık", bg:"#DBEAFE", color:"#1E40AF" }, Closed:{ label:"Kapalı", bg:"#D1FAE5", color:"#065F46" }, "Pending Closure":{ label:"Kapatma Bekliyor", bg:"#FEF3C7", color:"#92400E" } };
 const SEVERITY_MAP = { critical:{ label:"Kritik", bg:"#FEE2E2", color:"#991B1B" }, high:{ label:"Yüksek", bg:"#FEF3C7", color:"#92400E" }, medium:{ label:"Orta", bg:"#DBEAFE", color:"#1E40AF" }, low:{ label:"Düşük", bg:"#F3F4F6", color:"#374151" } };
@@ -168,6 +178,7 @@ const Icons = {
   Moon:()=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
   Sun:()=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
   LogOut:()=><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  History:()=><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
 };
 const CatIcon = ({type,size=15})=>{const s={width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"};const m={folder:<svg {...s}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,shield:<svg {...s}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,bell:<svg {...s}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>,list:<svg {...s}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>,users:<svg {...s}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>,chart:<svg {...s}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,lock:<svg {...s}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,more:<svg {...s}><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>};return m[type]||m.folder;};
 const Badge=({label,bg,color})=><span style={{padding:"3px 8px",borderRadius:4,fontSize:11.5,fontWeight:500,background:bg,color,whiteSpace:"nowrap"}}>{label}</span>;
@@ -200,6 +211,7 @@ export default function SCMReports({ onNavigate, currentRole = "analyst", onRole
   ]);
   const [manualDateFrom,setManualDateFrom]=useState("");const [manualDateTo,setManualDateTo]=useState("");
   const [manualCurrency,setManualCurrency]=useState("original");const [manualReportName,setManualReportName]=useState("");
+  const [auditFilter,setAuditFilter]=useState("");
 
   const recentReports=[
     {id:1,name:"Fraud Özet Raporu",ranAt:"06.03.2026 14:30",dateRange:"01.02 - 28.02.2026",type:"online"},
@@ -654,6 +666,60 @@ export default function SCMReports({ onNavigate, currentRole = "analyst", onRole
               </>}
             </div>
           </div>}
+
+          {/* ══════ DEĞİŞİKLİK GEÇMİŞİ ══════ */}
+          {reportMode==="standard"&&(()=>{
+            const filteredAudit=CONFIG_AUDIT_LOG.filter(log=>{
+              if(!auditFilter)return true;
+              const q=auditFilter.toLowerCase();
+              return log.setting.toLowerCase().includes(q)||log.domain.toLowerCase().includes(q)||log.user.toLowerCase().includes(q);
+            });
+            return(
+              <div style={{marginTop:24}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                  <div style={{width:32,height:32,borderRadius:8,background:"#EFF6FF",display:"flex",alignItems:"center",justifyContent:"center",color:C.primary}}><Icons.History/></div>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:700,color:C.text}}>Değişiklik Geçmişi</div>
+                    <div style={{fontSize:12,color:C.textSecondary}}>Tüm yapılandırma değişikliklerinin denetim izi (audit trail)</div>
+                  </div>
+                </div>
+                <div style={{background:"#fff",borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+                  <div style={{padding:"12px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:12}}>
+                    <input placeholder="Ayar adı, domain veya kullanıcı ara..." value={auditFilter} onChange={e=>setAuditFilter(e.target.value)} style={{flex:1,padding:"8px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,background:"#F8FAFC",color:C.text,fontFamily:"'DM Sans',sans-serif",outline:"none"}}/>
+                    <span style={{fontSize:12,color:C.textSecondary,fontWeight:500,whiteSpace:"nowrap"}}>{filteredAudit.length} kayıt</span>
+                  </div>
+                  <div style={{overflow:"auto",maxHeight:360}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
+                      <thead>
+                        <tr style={{background:"#F8FAFC"}}>
+                          {["Tarih / Saat","Kullanıcı","Domain","Ayar","Eski Değer","Yeni Değer","IP"].map(h=>(
+                            <th key={h} style={{padding:"10px 14px",textAlign:"left",fontWeight:700,color:C.textSecondary,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredAudit.map(log=>(
+                          <tr key={log.id} style={{borderBottom:`1px solid ${C.border}`,transition:"background 0.1s",cursor:"default"}}
+                            onMouseEnter={e=>e.currentTarget.style.background="#F8FAFC"}
+                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                          >
+                            <td style={{padding:"10px 14px",fontFamily:"'JetBrains Mono',monospace",fontSize:11.5,color:C.textSecondary,whiteSpace:"nowrap"}}>{log.timestamp}</td>
+                            <td style={{padding:"10px 14px",fontWeight:500}}>{log.user}</td>
+                            <td style={{padding:"10px 14px"}}><span style={{background:"#EFF6FF",color:C.primary,padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:600}}>{log.domain}</span></td>
+                            <td style={{padding:"10px 14px",fontFamily:"'JetBrains Mono',monospace",fontSize:11.5,color:C.primaryLight}}>{log.setting}</td>
+                            <td style={{padding:"10px 14px"}}><span style={{background:"#FEE2E2",color:"#991B1B",padding:"2px 8px",borderRadius:4,fontSize:11,fontFamily:"'JetBrains Mono',monospace"}}>{log.oldValue}</span></td>
+                            <td style={{padding:"10px 14px"}}><span style={{background:"#DCFCE7",color:"#166534",padding:"2px 8px",borderRadius:4,fontSize:11,fontFamily:"'JetBrains Mono',monospace"}}>{log.newValue}</span></td>
+                            <td style={{padding:"10px 14px",fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:C.textSecondary}}>{log.ip}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {filteredAudit.length===0&&<div style={{padding:"32px 20px",textAlign:"center",color:C.textSecondary,fontSize:13}}>Eşleşen kayıt bulunamadı.</div>}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ══════ MANUEL RAPOR (removed) ══════ */}
           {false&&<div style={{display:"flex",gap:20,minHeight:"calc(100vh - 120px)"}}>

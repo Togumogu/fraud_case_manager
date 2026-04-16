@@ -213,7 +213,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
   const [advancedAnalyticsLoading, setAdvancedAnalyticsLoading] = useState(true);
 
   const user = USERS[currentRole];
-  const isManager = currentRole === "manager" || currentRole === "admin";
+  const isManager = currentRole === "manager" || currentRole === "admin" || currentRole === "super";
 
   useEffect(() => {
     let cancelled = false;
@@ -721,7 +721,7 @@ export default function SCMDashboard({ onNavigate, currentRole = "analyst", onRo
               </div>
             </div>
 
-            {/* Pending Approvals (Manager/Admin only) */}
+            {/* Pending Approvals (Manager/Admin/Super) */}
             {isManager && (
               <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
                 <div style={{ padding: "18px 22px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

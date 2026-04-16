@@ -77,15 +77,6 @@ const DOMAIN_SETTINGS = {
   },
 };
 
-const CONFIG_AUDIT_LOG = [
-  { id: 1, user: "Zeynep Demir", domain: "Payment Fraud", setting: "maker_checker_enabled", oldValue: "false", newValue: "true", timestamp: "14.03.2026 09:20", ip: "10.0.1.45" },
-  { id: 2, user: "Zeynep Demir", domain: "Payment Fraud", setting: "notification_enabled", oldValue: "false", newValue: "true", timestamp: "14.03.2026 09:18", ip: "10.0.1.45" },
-  { id: 3, user: "Zeynep Demir", domain: "Payment Fraud", setting: "notification_enabled", oldValue: "false", newValue: "true", timestamp: "14.03.2026 09:15", ip: "10.0.1.45" },
-  { id: 4, user: "Zeynep Demir", domain: "Account Takeover", setting: "notification_enabled", oldValue: "false", newValue: "true", timestamp: "12.03.2026 16:42", ip: "10.0.1.45" },
-  { id: 6, user: "Zeynep Demir", domain: "Credit Card Fraud", setting: "default_currency", oldValue: "original", newValue: "TRY", timestamp: "11.03.2026 14:05", ip: "10.0.1.45" },
-  { id: 7, user: "Zeynep Demir", domain: "Application Fraud", setting: "maker_checker_enabled", oldValue: "true", newValue: "false", timestamp: "10.03.2026 11:30", ip: "10.0.1.45" },
-  { id: 8, user: "Zeynep Demir", domain: "Application Fraud", setting: "auto_assign_enabled", oldValue: "false", newValue: "true", timestamp: "10.03.2026 11:28", ip: "10.0.1.45" },
-];
 
 const NOTIFICATIONS = [
   { id: 1, text: "Sistem ayarı değiştirildi: Payment Fraud — maker_checker_enabled", time: "09:20", read: false },
@@ -299,7 +290,6 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
   const [activeSection, setActiveSection] = useState("system");
   const [toast, setToast] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
-  const [auditFilter, setAuditFilter] = useState("");
 
   // Role management state
   const [roles, setRoles] = useState(INITIAL_ROLES);
@@ -508,17 +498,11 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
     { key: "domains_mgmt", label: "Domain Yönetimi", icon: <Icons.Globe /> },
     { key: "notification", label: "Bildirim & E-posta", icon: <Icons.Mail /> },
     { key: "roles", label: "Rol Yönetimi", icon: <Icons.Key /> },
-    { key: "audit", label: "Değişiklik Geçmişi", icon: <Icons.History /> },
   ];
 
   const domainLabel = domains.find(d => d.id === selectedDomain)?.label || "";
 
 
-  const filteredAudit = CONFIG_AUDIT_LOG.filter(log => {
-    if (!auditFilter) return true;
-    const q = auditFilter.toLowerCase();
-    return log.setting.toLowerCase().includes(q) || log.domain.toLowerCase().includes(q) || log.user.toLowerCase().includes(q);
-  });
 
 
 
@@ -1008,60 +992,6 @@ export default function SCMSettings({ onNavigate, currentRole = "analyst", onRol
               </div>
             )}
 
-            {/* AUDIT LOG */}
-            {activeSection === "audit" && (
-              <div style={{ animation: "slideUp 0.3s ease" }}>
-                <SectionHeader icon={<Icons.History />} title="Değişiklik Geçmişi" subtitle="Tüm yapılandırma değişikliklerinin denetim izi (audit trail)" />
-
-                <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                  {/* Search */}
-                  <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12 }}>
-                    <input
-                      placeholder="Ayar adı, domain veya kullanıcı ara..."
-                      value={auditFilter}
-                      onChange={e => setAuditFilter(e.target.value)}
-                      style={{ flex: 1, padding: "8px 14px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 13, background: "#F8FAFC", color: C.text, fontFamily: "'DM Sans', sans-serif" }}
-                    />
-                    <span style={{ fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>{filteredAudit.length} kayıt</span>
-                  </div>
-
-                  {/* Table */}
-                  <div style={{ overflow: "auto", maxHeight: 460 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                      <thead>
-                        <tr style={{ background: "#F8FAFC" }}>
-                          {["Tarih / Saat", "Kullanıcı", "Domain", "Ayar", "Eski Değer", "Yeni Değer", "IP"].map(h => (
-                            <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.textSecondary, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAudit.map((log, i) => (
-                          <tr key={log.id} style={{ borderBottom: `1px solid ${C.border}`, transition: "background 0.1s", cursor: "default" }}
-                            onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
-                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                          >
-                            <td style={{ padding: "10px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: C.textSecondary, whiteSpace: "nowrap" }}>{log.timestamp}</td>
-                            <td style={{ padding: "10px 14px", fontWeight: 500 }}>{log.user}</td>
-                            <td style={{ padding: "10px 14px" }}>
-                              <span style={{ background: "#EFF6FF", color: C.primary, padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>{log.domain}</span>
-                            </td>
-                            <td style={{ padding: "10px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: C.primaryLight }}>{log.setting}</td>
-                            <td style={{ padding: "10px 14px" }}>
-                              <span style={{ background: "#FEE2E2", color: "#991B1B", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>{log.oldValue}</span>
-                            </td>
-                            <td style={{ padding: "10px 14px" }}>
-                              <span style={{ background: "#DCFCE7", color: "#166534", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>{log.newValue}</span>
-                            </td>
-                            <td style={{ padding: "10px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textSecondary }}>{log.ip}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
